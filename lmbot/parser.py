@@ -71,7 +71,7 @@ SPECS += [
     _s("stats", "stats", "GUILD", "!stats", "melihat report kill monster", "!stats"),
     _s("stats_all", "stats all", "GUILD", "!stats all", "melihat report hadiah box klan", "!stats all"),
     _s("pstats", "pstats <nick>", "GUILD", "!pstats nick",
-       "melihat report kill monster anggota", "!pstats lady_ayu"),
+       "melihat report kill monster anggota", "!pstats arken_ega"),
     _s("stop", "stop <duration>", "GUILD", "!stop (waktu detik)",
        "mengoffkan bank dalam waktu yang diminta", "!stop 3600",
        min_rank="R4", risky=True),
@@ -96,17 +96,17 @@ SPECS += [
     _s("hunt", "hunt <x> <y>", "GUILD", "!hunt (X)(Y)",
        "bank memburu monster sesuai target", "!hunt 123 456", min_rank="R3"),
     _s("addtitle", "addtitle <nick> <title>", "GUILD", "!addtitle",
-       "memberikan gelar yang telah diberikan", "!addtitle lady_ayu chief", min_rank="R4"),
+       "memberikan gelar yang telah diberikan", "!addtitle arken_ega chief", min_rank="R4"),
     _s("deltitle", "deltitle <nick>", "GUILD", "!deltitle",
        "menghapus gelar yang telah diberikan", "!deltitle chief", min_rank="R4"),
     _s("whitelist", "whitelist <nick> <rank>", "GUILD", "!whitelist (nick)(rank)",
-       "auto acc dan auto up rank member", "!whitelist lady_ayu R3", min_rank="R5"),
+       "auto acc dan auto up rank member", "!whitelist arken_ega R3", min_rank="R5"),
     _s("blacklist", "blacklist <nick>", "GUILD", "!blacklist (nick)",
-       "menolak member yang mendaftar ke klan", "!blacklist lady_ayu", min_rank="R4"),
+       "menolak member yang mendaftar ke klan", "!blacklist arken_ega", min_rank="R4"),
     _s("unwhitelist", "unwhitelist <nick>", "GUILD", "!unwhitelist (nick)",
-       "menghapus member dari daftar whitelist", "!unwhitelist lady_ayu", min_rank="R5"),
+       "menghapus member dari daftar whitelist", "!unwhitelist arken_ega", min_rank="R5"),
     _s("unblacklist", "unblacklist <nick>", "GUILD", "!unblacklist (nick)",
-       "menghapus member dari daftar blacklist", "!unblacklist lady_ayu", min_rank="R4"),
+       "menghapus member dari daftar blacklist", "!unblacklist arken_ega", min_rank="R4"),
     _s("abort", "abort", "GUILD", "!abort", "membatalkan semua pengiriman rss", "!abort",
        min_rank="R4"),
     _s("quest", "quest", "GUILD", "!quest", "cek misi GF bank", "!quest"),
@@ -162,14 +162,14 @@ SPECS += [
     _s("adminbal", "adminbal", "BALANCE", "!adminbal", "cek jumlah rss di luar tas bank", "!adminbal",
        min_rank="R4"),
     _s("adminbal_member", "adminbal <nick>", "BALANCE", "!adminbal (nick)",
-       "cek tabungan member yang menabung di bank", "!adminbal lady_ayu", min_rank="R4"),
+       "cek tabungan member yang menabung di bank", "!adminbal arken_ega", min_rank="R4"),
     _s("adminbag", "adminbag", "BALANCE", "!adminbag", "cek jumlah rss di dalam tas", "!adminbag",
        min_rank="R4"),
     _s("setbal", "setbal <nick> <type> <amount>", "BALANCE", "!setbal",
-       "menetapkan saldo secara manual ke akun member", "!setbal lady_ayu food 100m",
+       "menetapkan saldo secara manual ke akun member", "!setbal arken_ega food 100m",
        min_rank="R5", risky=True),
     _s("transfer", "transfer <nick> <type> <amount>", "BALANCE", "!transfer (nick)(type)(jumlah)",
-       "mentransfer saldo tabungan ke member lain", "!transfer lady_ayu ore 100m"),
+       "mentransfer saldo tabungan ke member lain", "!transfer arken_ega ore 100m"),
 ]
 
 # ----------------------------------- RSS ----------------------------------- #
@@ -177,10 +177,10 @@ SPECS += [
     _s("rss", "rss <f> <s> <w> <o> <g>", "RSS", "!rss (F)(S)(W)(O)(G)",
        "mengirimkan semua tipe rss yang diminta", "!rss 5m 5m 5m 5m 5m"),
     _s("donate", "donate <type> <nick> <amount>", "RSS", "!donate (type)(nick)(jumlah)",
-       "mengirimkan rss ke player yang dituju", "!donate food lady_ayu 100m"),
+       "mengirimkan rss ke player yang dituju", "!donate food arken_ega 100m"),
     _s("adminrss", "adminrss <f> <s> <w> <o> <g> <nick>", "RSS", "!adminrss",
        "mengirimkan semua tipe rss ke player yang dituju (hanya admin)",
-       "!adminrss 1m 0 0 0 0 lady_ayu", min_rank="R5", risky=True),
+       "!adminrss 1m 0 0 0 0 arken_ega", min_rank="R5", risky=True),
 ]
 
 # ----------------------------------- INFO ---------------------------------- #
@@ -193,6 +193,8 @@ SPECS += [
        "cek selisih saldo tercatat dengan isi tas bank", "!sync"),
     _s("alerts", "alerts", "INFO", "!alerts",
        "peringatan terakhir dari bot", "!alerts", min_rank="R4"),
+    _s("version", "version", "INFO", "!version",
+       "versi bot & pembuatnya", "!version"),
 ]
 
 # Dynamic: !food 100m, !ore 50m, dst. (lihat build_rss_shortcuts)

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import __version__
+from .about import AUTHOR_LINE, TAGLINE
 from .bot import Bot, setup_logging
 from .config import ConfigError, load_config
 from .device import DeviceError
@@ -21,12 +22,13 @@ BANNER = r"""
 | |   | |\/| | |_) | ___ | '_ \
 | |___| |  | |  _ < / _ \| |_) |
 |_____|_|  |_|_| \_\___/ |_.__/   v{v}
-Guild Bank Bot — Lord Mobile | MuMu + ADB (tanpa modifikasi game)
+{tagline}
+{author}
 """
 
 
 def _print_banner() -> None:
-    print(BANNER.format(v=__version__))
+    print(BANNER.format(v=__version__, tagline=TAGLINE, author=AUTHOR_LINE))
 
 
 def _use_color() -> bool:
@@ -249,26 +251,26 @@ def cmd_once(args) -> int:
 # Subcommand: demo (simulasi penuh tanpa emulator)
 # --------------------------------------------------------------------------- #
 DEMO_SCENARIO = [
-    ("lady_ayu", "!whitelist budi R2"),
-    ("lady_ayu", "!whitelist officer R4"),
-    ("lady_ayu", "!setbal budi food 20m"),
-    ("lady_ayu", "!setbal budi ore 3m"),
-    ("lady_ayu", "!bal"),
+    ("arken_ega", "!whitelist budi R2"),
+    ("arken_ega", "!whitelist officer R4"),
+    ("arken_ega", "!setbal budi food 20m"),
+    ("arken_ega", "!setbal budi ore 3m"),
+    ("arken_ega", "!bal"),
     ("budi", "!food 5m"),
-    ("lady_ayu", "!transfer budi ore 1m"),
+    ("arken_ega", "!transfer budi ore 1m"),
     ("officer", "!adminbal budi"),
     ("budi", "!relocate 100 200"),
     ("officer", "!shield"),
     ("officer", "!joinca 1 F"),
     ("officer", "!findtile food 4 chat"),
-    ("lady_ayu", "!stop 1800"),
+    ("arken_ega", "!stop 1800"),
     ("budi", "!food 5m"),
-    ("lady_ayu", "!abort"),
-    ("lady_ayu", "!members"),
-    ("lady_ayu", "!stats all"),
+    ("arken_ega", "!abort"),
+    ("arken_ega", "!members"),
+    ("arken_ega", "!stats all"),
     ("budi", "!help RSS"),
-    ("lady_ayu", "!guild AYU"),
-    ("lady_ayu", "!guild AYU confirm"),
+    ("arken_ega", "!guild AYU"),
+    ("arken_ega", "!guild AYU confirm"),
     ("budi", "!bulanbaru"),
 ]
 
@@ -292,8 +294,8 @@ def cmd_demo(args) -> int:
         h.setLevel("WARNING")
     ops = MockOps()
     bot = Bot(cfg, ops, logger=logger)
-    bot.bank.roster.set_member("lady_ayu", "R5")
-    bot.bank.credit("lady_ayu", {"food": 100_000_000, "stone": 5_000_000, "wood": 5_000_000,
+    bot.bank.roster.set_member("arken_ega", "R5")
+    bot.bank.credit("arken_ega", {"food": 100_000_000, "stone": 5_000_000, "wood": 5_000_000,
                                  "ore": 5_000_000, "gold": 1_000_000})
 
     _print_banner()

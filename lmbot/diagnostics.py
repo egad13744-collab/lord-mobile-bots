@@ -11,9 +11,9 @@ def warn_insecure_defaults(cfg, emit: Callable[[str], None]) -> List[str]:
     found: List[str] = []
 
     allowed = list(cfg.get("bot.allowed_senders") or [])
-    if any(str(n).lower() == "lady_ayu" for n in allowed):
+    if any(str(n).lower() == "arken_ega" for n in allowed):
         found.append(
-            "bot.allowed_senders masih berisi nick contoh 'lady_ayu'. Ganti dengan "
+            "bot.allowed_senders masih berisi nick contoh 'arken_ega'. Ganti dengan "
             "nick akun bank/leader kamu di config/settings.yaml."
         )
 

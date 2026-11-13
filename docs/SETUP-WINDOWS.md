@@ -94,8 +94,8 @@ device:
   height: 720
 
 bot:
-  owner_nick: lady_ayu
-  allowed_senders: [lady_ayu]           # whitelist awal R5
+  owner_nick: arken_ega
+  allowed_senders: [arken_ega]           # whitelist awal R5
   reply_confirm: true                   # bot membalas ke chat game
 ```
 
@@ -103,7 +103,7 @@ Nick pada `allowed_senders` otomatis masuk whitelist **R5** saat state pertama
 kali dibuat. Owner **R6** (tidak bisa diturunkan lewat chat) ditambahkan dengan:
 
 ```powershell
-python code.py bank whitelist lady_ayu --rank R5
+python code.py bank whitelist arken_ega --rank R5
 # atau edit state/bank.json -> roster.owners
 ```
 
@@ -122,15 +122,15 @@ Mode sumber perintah:
 | Mode | Cara pakai | Butuh OCR? |
 |---|---|---|
 | `terminal` | ketik `!bal` di prompt `lmbot>` | tidak |
-| `file` | tambahkan baris `lady_ayu|!food 1m` ke `state/commands.txt` | tidak |
-| `http` | `POST http://<ip-rdp>:8080/` body `{"text":"!bal","sender":"lady_ayu"}` + header `X-Bot-Token` | tidak |
+| `file` | tambahkan baris `arken_ega|!food 1m` ke `state/commands.txt` | tidak |
+| `http` | `POST http://<ip-rdp>:8080/` body `{"text":"!bal","sender":"arken_ega"}` + header `X-Bot-Token` | tidak |
 | `chat` | bot membaca chat game sendiri | **ya** (docs/OCR.md) |
 
 Contoh webhook dari HP (satu LAN dengan mesin RDP):
 
 ```bash
 curl -X POST http://192.168.1.10:8080/ -H "Content-Type: application/json" \
-     -H "X-Bot-Token: rahasia123" -d '{"text":"!food 10m","sender":"lady_ayu"}'
+     -H "X-Bot-Token: rahasia123" -d '{"text":"!food 10m","sender":"arken_ega"}'
 ```
 
 ---

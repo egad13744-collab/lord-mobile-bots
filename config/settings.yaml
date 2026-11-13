@@ -27,9 +27,9 @@ ui:
 
 bot:
   name: LMBot
-  owner_nick: lady_ayu
+  owner_nick: arken_ega
   allowed_senders:            # otomatis masuk whitelist R5 saat pertama kali
-    - lady_ayu
+    - arken_ega
   guild_name: GUILD
   poll_interval: 3.0
   max_commands_per_minute: 20

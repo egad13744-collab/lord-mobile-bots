@@ -53,7 +53,7 @@ def test_human():
         ("!relocate 123 456", "relocate", "x", "123"),
         ("!joinca 1 F", "joincha", "f", True),
         ("!findtile food 4 chat", "findtile", "chat", True),
-        ("!transfer lady_ayu ore 100m", "transfer", "amount", "100m"),
+        ("!transfer arken_ega ore 100m", "transfer", "amount", "100m"),
         ("!rss 5m 5m 5m 5m 5m", "rss", "g", "5m"),
         ("!food 100m", "rss_food", "amount", "100m"),
         ("!buildspam stop", "buildspam_stop", None, None),
@@ -82,7 +82,7 @@ def test_semua_kode_pada_gambar_punya_handler(cfg, bank, ops):
         args = {p: ("1" if p not in ("type", "nick", "monster", "title", "rank") else "food")
                 for p in spec.params}
         args.setdefault("nick", "member")
-        result = h.dispatch(Cmd(spec.name, args, "lady_ayu", rank="R5"))
+        result = h.dispatch(Cmd(spec.name, args, "arken_ega", rank="R5"))
         if "belum diimplementasikan" in (result.error or ""):
             missing.append(spec.name)
     assert not missing, f"handler hilang: {missing}"
@@ -114,14 +114,14 @@ def test_audit_log_written(bank):
 
 def test_leaderboard(bank):
     rows = bank.leaderboard("food")
-    assert rows[0][0] == "ladyayu"
+    assert rows[0][0] == "arkenega"
 
 
 def test_freeze_blocks_transfer(bot, bank):
-    reply = bot.handle_line("!stop 600", "lady_ayu")
+    reply = bot.handle_line("!stop 600", "arken_ega")
     assert reply.ok
     assert bank.is_frozen()
-    blocked = bot.handle_line("!food 1m", "lady_ayu")
+    blocked = bot.handle_line("!food 1m", "arken_ega")
     assert not blocked.ok
     assert "dijeda" in blocked.message
 
@@ -149,7 +149,7 @@ def test_unknown_sender_denied(bot):
 
 
 def test_whitelist_command_persists(bot, cfg):
-    reply = bot.handle_line("!whitelist budi R3", "lady_ayu")
+    reply = bot.handle_line("!whitelist budi R3", "arken_ega")
     assert reply.ok
     reloaded = BankStore(cfg, path=cfg.get("bank.path"))
     assert reloaded.roster.rank_of("budi") == "R3"
@@ -159,7 +159,7 @@ def test_nick_normalization_matches(bank):
     bank.credit("Budi Santoso", {"food": 5})
     assert bank.balance("budisantoso")["food"] == 5
     assert bank.balance("budi_santoso")["food"] == 5
-    assert bank.roster.resolve("lady ayu")
+    assert bank.roster.resolve("arken ega")
 
 
 def test_roster_roundtrip():
@@ -179,17 +179,17 @@ def test_roster_roundtrip():
 # alur RSS / transfer
 # --------------------------------------------------------------------------- #
 def test_rss_shortcut_debits_and_sends(bot, bank, ops):
-    reply = bot.handle_line("!food 1m", "lady_ayu")
+    reply = bot.handle_line("!food 1m", "arken_ega")
     assert reply.ok, reply.message
-    assert bank.balance("lady_ayu")["food"] == 49_000_000
+    assert bank.balance("arken_ega")["food"] == 49_000_000
     assert ops.calls[-1][0] == "send_rss_to_member"
     assert ops.calls[-1][2] == {"food": 1_000_000}
 
 
 def test_rss_full_vector(bot, bank):
-    reply = bot.handle_line("!rss 1m 0 0 0 0", "lady_ayu")
+    reply = bot.handle_line("!rss 1m 0 0 0 0", "arken_ega")
     assert reply.ok, reply.message
-    assert bank.balance("lady_ayu")["food"] == 49_000_000
+    assert bank.balance("arken_ega")["food"] == 49_000_000
 
 
 def test_refund_on_ops_failure(cfg, bank):
@@ -198,41 +198,41 @@ def test_refund_on_ops_failure(cfg, bank):
             raise OpsError("flow belum dikalibrasi")
 
     bot = Bot(cfg, BrokenOps(), bank=bank)
-    before = bank.balance("lady_ayu")["food"]
-    reply = bot.handle_line("!food 1m", "lady_ayu")
+    before = bank.balance("arken_ega")["food"]
+    reply = bot.handle_line("!food 1m", "arken_ega")
     assert not reply.ok
     assert "dikembalikan" in reply.message
-    assert bank.balance("lady_ayu")["food"] == before
+    assert bank.balance("arken_ega")["food"] == before
 
 
 def test_safety_limit(bot):
-    reply = bot.handle_line("!food 999m", "lady_ayu")
+    reply = bot.handle_line("!food 999m", "arken_ega")
     assert not reply.ok
     assert "batas aman" in reply.message
 
 
 def test_transfer_to_self_rejected(bot):
-    reply = bot.handle_line("!transfer lady_ayu food 1m", "lady_ayu")
+    reply = bot.handle_line("!transfer arken_ega food 1m", "arken_ega")
     assert not reply.ok
     assert "diri sendiri" in reply.message
 
 
 def test_transfer_between_members(bot, bank):
     bank.credit("member", {"ore": 5_000_000})
-    reply = bot.handle_line("!transfer member ore 1m", "lady_ayu")
+    reply = bot.handle_line("!transfer member ore 1m", "arken_ega")
     assert reply.ok, reply.message
-    assert bank.balance("lady_ayu")["ore"] == 1_000_000
+    assert bank.balance("arken_ega")["ore"] == 1_000_000
     assert bank.balance("member")["ore"] == 6_000_000
 
 
 def test_setbal_requires_r5(bot, bank):
     assert not bot.handle_line("!setbal member food 1m", "officer").ok
-    assert bot.handle_line("!setbal member food 1m", "lady_ayu").ok
+    assert bot.handle_line("!setbal member food 1m", "arken_ega").ok
     assert bank.balance("member")["food"] == 1_000_000
 
 
 def test_abort_freezes(bot, bank):
-    assert bot.handle_line("!abort", "lady_ayu").ok
+    assert bot.handle_line("!abort", "arken_ega").ok
     assert bank.is_frozen()
 
 
@@ -242,20 +242,20 @@ def test_abort_freezes(bot, bank):
 def test_rate_limit(cfg, bank, ops):
     cfg.data["bot"]["max_commands_per_minute"] = 3
     bot = Bot(cfg, ops, bank=bank)
-    results = [bot.handle_line("!shield", "lady_ayu").ok for _ in range(5)]
+    results = [bot.handle_line("!shield", "arken_ega").ok for _ in range(5)]
     assert results[:3] == [True, True, True]
     assert results[3] is False
 
 
 def test_prefix_filter(bot):
-    assert bot.handle_line("halo semua", "lady_ayu").message == ""
-    assert bot.handle_line("[R4] !shield", "lady_ayu").ok
+    assert bot.handle_line("halo semua", "arken_ega").message == ""
+    assert bot.handle_line("[R4] !shield", "arken_ega").ok
 
 
 def test_dry_run_never_touches_game(cfg, bank, ops):
     cfg.data["bot"]["dry_run"] = True
     bot = Bot(cfg, ops, bank=bank)
-    bot.handle_line("!food 1m", "lady_ayu")
+    bot.handle_line("!food 1m", "arken_ega")
     assert not [c for c in ops.calls if c[0] == "send_rss_to_member"]
 
 
@@ -263,27 +263,27 @@ def test_dry_run_never_touches_game(cfg, bank, ops):
 # fitur lanjutan: help/top/sync, konfirmasi 2 langkah, alert, chat_tail, lock
 # --------------------------------------------------------------------------- #
 def test_help_command(bot):
-    assert bot.handle_line("!help", "lady_ayu").ok
-    rss = bot.handle_line("!help RSS", "lady_ayu")
+    assert bot.handle_line("!help", "arken_ega").ok
+    rss = bot.handle_line("!help RSS", "arken_ega")
     assert rss.ok and "RSS" in rss.message
 
 
 def test_top_command(bot, bank):
     bank.credit("member", {"gold": 7})
-    reply = bot.handle_line("!top gold", "lady_ayu")
+    reply = bot.handle_line("!top gold", "arken_ega")
     assert reply.ok and "member" in reply.message
 
 
 def test_sync_reports_total(bot, bank):
-    reply = bot.handle_line("!sync", "lady_ayu")
+    reply = bot.handle_line("!sync", "arken_ega")
     assert reply.ok and "Saldo tercatat" in reply.message
 
 
 def test_confirm_two_step(bot, ops):
-    first = bot.handle_line("!guild AYU", "lady_ayu")
+    first = bot.handle_line("!guild AYU", "arken_ega")
     assert first.ok and "Konfirmasi" in first.message
     assert not ops.actions(), "aksi tidak boleh jalan sebelum konfirmasi"
-    second = bot.handle_line("!guild AYU confirm", "lady_ayu")
+    second = bot.handle_line("!guild AYU confirm", "arken_ega")
     assert second.ok and "dipindahkan" in second.message
     assert ops.actions() == ["guild"]
 
@@ -291,12 +291,12 @@ def test_confirm_two_step(bot, ops):
 def test_confirm_disabled(cfg, bank, ops):
     cfg.data["bot"]["confirm_risky"] = False
     bot = Bot(cfg, ops, bank=bank)
-    reply = bot.handle_line("!migrate 123 4 5", "lady_ayu")
+    reply = bot.handle_line("!migrate 123 4 5", "arken_ega")
     assert reply.ok and ops.actions() == ["migrate"]
 
 
 def test_confirm_relocate(bot, ops):
-    assert "Konfirmasi" in bot.handle_line("!relocate 10 20", "lady_ayu").message
+    assert "Konfirmasi" in bot.handle_line("!relocate 10 20", "arken_ega").message
     assert not ops.actions()
 
 
@@ -311,7 +311,7 @@ def test_alert_on_failure(cfg, bank):
     ops = BrokenOps()
     ops.alerts = sink
     bot = Bot(cfg, ops, bank=bank)
-    reply = bot.handle_line("!food 1m", "lady_ayu")
+    reply = bot.handle_line("!food 1m", "arken_ega")
     assert not reply.ok
     rows = sink.recent()
     assert rows and rows[-1]["level"] == "error"
@@ -441,7 +441,7 @@ def test_diagnostics_warn_defaults(cfg):
 
     emitted = []
     found = warn_insecure_defaults(cfg, emitted.append)
-    assert any("lady_ayu" in m for m in found)
+    assert any("arken_ega" in m for m in found)
     assert emitted == [f"⚠️  {m}" for m in found]
 
 
@@ -453,3 +453,35 @@ def test_diagnostics_quiet_when_configured(cfg):
     cfg.data["bot"]["confirm_risky"] = True
     cfg.data["web"]["enabled"] = False
     assert warn_insecure_defaults(cfg, lambda _m: None) == []
+
+
+# --------------------------------------------------------------------------- #
+# atribusi & contoh nick
+# --------------------------------------------------------------------------- #
+def test_version_command_shows_author(bot):
+    reply = bot.handle_line("!version", "arken_ega")
+    assert reply.ok
+    assert "Egandika" in reply.message
+    assert "1.0.0" in reply.message
+
+
+def test_about_module_is_single_source():
+    from lmbot.about import AUTHOR, AUTHOR_LINE, VERSION, credit
+    from lmbot import __author__, __version__
+
+    assert AUTHOR == "Egandika"
+    assert AUTHOR_LINE == "Dibuat oleh Egandika"
+    assert __author__ == AUTHOR and __version__ == VERSION
+    assert "Egandika" in credit()
+    assert credit(short=True) == AUTHOR_LINE
+
+
+def test_examples_use_arken_ega_not_lady_ayu(cfg, bot):
+    """Nick contoh di perintah & config harus Arken Ega, bukan lady_ayu."""
+    from lmbot.parser import ALL_SPECS
+
+    for spec in ALL_SPECS:
+        assert "lady_ayu" not in spec.example.lower(), spec.name
+    allowed = [str(n).lower() for n in cfg.get("bot.allowed_senders")]
+    assert "lady_ayu" not in allowed
+    assert bot.handle_line("!bal", "arken_ega").ok

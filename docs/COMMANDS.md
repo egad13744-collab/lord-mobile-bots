@@ -1,8 +1,10 @@
 # Referensi perintah
 
+> LMBot — **Dibuat oleh Egandika**
+
 Format umum: `!kode parameter...`
 Jumlah: `100m` (juta), `1.5k` (ribu), `2b` (miliar), atau angka polos `250000`.
-Nick tidak peka huruf besar/kecil, spasi, atau underscore: `Lady Ayu` = `lady_ayu`.
+Nick tidak peka huruf besar/kecil, spasi, atau underscore: `Arken Ega` = `arken_ega`.
 
 ## Rank
 
