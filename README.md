@@ -48,7 +48,10 @@ Setelah bot hidup, di prompt `lmbot>`:
 !food 10m
 ```
 
-Panduan langkah demi langkah: **[docs/SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md)**.
+📖 **Baru pertama kali?** Ikuti tutorial dari nol (buka terminal → unduh MuMu →
+pasang → jalankan): **[docs/TUTORIAL.md](docs/TUTORIAL.md)**
+
+Panduan ringkas teknis: **[docs/SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md)**.
 
 ### Tanpa emulator (uji logika dulu)
 
@@ -234,7 +237,7 @@ lmbot/
 config/settings.yaml     konfigurasi utama
 config/flows/*.yaml      koordinat alur UI (kalibrasi di sini)
 scripts/                 setup-windows.ps1, start-bot.ps1/.bat
-docs/                    SETUP-WINDOWS, CALIBRATION, OCR
+docs/                    TUTORIAL, SETUP-WINDOWS, CALIBRATION, OCR, ASSETS
 assets/templates/        16 template terukur dari screenshot asli (1600x720)
 tests/                   82 test tanpa emulator (pytest)
 .github/workflows/       CI (matrix Python × OS, plus tanpa OpenCV)
@@ -247,6 +250,7 @@ tests/                   82 test tanpa emulator (pytest)
 | **Dibuat oleh** | **Egandika** |
 | Versi | 1.0.0 (`!version` di chat, atau `python code.py --version`) |
 | Lisensi | MIT — lihat `LICENSE` |
+| Tutorial | `docs/TUTORIAL.md` (dari buka terminal sampai bot jalan) |
 
 Atribusi ini tampil di banner terminal, footer dashboard, `GET /` webhook,
 `!version` di chat, lalu judul jendela `scripts/start-bot.bat`.
