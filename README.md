@@ -48,8 +48,10 @@ Setelah bot hidup, di prompt `lmbot>`:
 !food 10m
 ```
 
-📖 **Baru pertama kali?** Ikuti tutorial dari nol (buka terminal → unduh MuMu →
-pasang → jalankan): **[docs/TUTORIAL.md](docs/TUTORIAL.md)**
+📖 **Baru pertama kali?**
+- **[docs/TUTORIAL-CODEPASTE.md](docs/TUTORIAL-CODEPASTE.md)** — 15 langkah, **semua berupa blok kode siap salin-tempel** (paling gampang)
+- [docs/TUTORIAL.md](docs/TUTORIAL.md) — versi panjang dengan penjelasan tiap langkah
+- **[docs/CARA-KERJA.md](docs/CARA-KERJA.md)** — bagaimana bot bekerja (arsitektur, 12 bagian)
 
 Panduan ringkas teknis: **[docs/SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md)**.
 
@@ -136,6 +138,8 @@ Jumlah menerima `k`/`m`/`b`: `100m`, `1.5k`, `2b`, atau angka biasa.
 
 ```powershell
 python code.py demo                       # simulasi tanpa emulator
+python code.py info                       # ringkasan cara kerja & status
+python code.py setup --nick "Arken Ega" --port 16384 --width 1600 --height 720
 python code.py doctor                     # cek adb, emulator, flow, template
 python code.py serve                      # bot interaktif
 python code.py serve --source file        # perintah dari state/commands.txt (sender|!cmd)
@@ -239,27 +243,47 @@ config/flows/*.yaml      koordinat alur UI (kalibrasi di sini)
 scripts/                 setup-windows.ps1, start-bot.ps1/.bat
 docs/                    TUTORIAL, SETUP-WINDOWS, CALIBRATION, OCR, ASSETS
 assets/templates/        16 template terukur dari screenshot asli (1600x720)
-tests/                   82 test tanpa emulator (pytest)
+tests/                   95 test tanpa emulator (pytest)
 .github/workflows/       CI (matrix Python × OS, plus tanpa OpenCV)
 ```
 
-## 7. Tentang
+## 7. Cara kerja singkat
+
+```
+Chat / Terminal / File / Webhook  →  Parser  →  Otorisasi (rank R1–R6)
+        →  Handler  →  Buku besar (debit/kredit + refund)
+                    →  Flow YAML  →  ADB  →  MuMu Player
+```
+
+1. **Parser** mengubah teks jadi perintah (`!transfer Arken Ega ore 1m`).
+2. **Otorisasi** mengecek whitelist + rank minimum perintah.
+3. **Buku besar** memotong saldo dulu; kalau aksi di game gagal, saldo
+   **dikembalikan otomatis** (tidak ada RSS hilang dari catatan).
+4. **Flow YAML** berisi koordinat tombol (fraksi 0–1) sehingga bisa diperbaiki
+   tanpa menyentuh kode.
+5. **ADB** menjalankan `screencap` (lihat) dan `input tap` (sentuh) — seperti
+   tangan manusia, tanpa modifikasi game.
+
+Penjelasan lengkap: **[docs/CARA-KERJA.md](docs/CARA-KERJA.md)**
+
+## 8. Tentang
 
 | | |
 |---|---|
 | **Dibuat oleh** | **Egandika** |
 | Versi | 1.0.0 (`!version` di chat, atau `python code.py --version`) |
 | Lisensi | MIT — lihat `LICENSE` |
-| Tutorial | `docs/TUTORIAL.md` (dari buka terminal sampai bot jalan) |
+| Tutorial | `docs/TUTORIAL-CODEPASTE.md` (salin-tempel) · `docs/TUTORIAL.md` (lengkap) |
+| Cara kerja | `docs/CARA-KERJA.md` |
 
 Atribusi ini tampil di banner terminal, footer dashboard, `GET /` webhook,
 `!version` di chat, lalu judul jendela `scripts/start-bot.bat`.
 
-## 8. Development
+## 9. Development
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q          # 79 test tanpa emulator
+python -m pytest -q          # 95 test tanpa emulator
 python code.py --dry-run serve
 ```
 

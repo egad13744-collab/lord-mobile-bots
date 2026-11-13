@@ -13,6 +13,7 @@ from . import __version__
 from .about import AUTHOR_LINE, TAGLINE
 from .bot import Bot, setup_logging
 from .config import ConfigError, load_config
+from .utils import ParseError
 from .device import DeviceError
 from .ops import AdbOps, MockOps, OpsError
 
@@ -236,11 +237,11 @@ def cmd_serve(args) -> int:
 # Subcommand: cmd (satu perintah)
 # --------------------------------------------------------------------------- #
 def cmd_once(args) -> int:
-    bot = build_bot(args)
     text = " ".join(args.text).strip()
     if not text:
         print("pakai: lmbot cmd \"!bal\"")
         return 2
+    bot = build_bot(args)
     reply = bot.handle_line(text, args.sender)
     print(reply.message or ("ok" if reply.ok else "gagal"))
     return 0 if reply.ok else 1
@@ -328,8 +329,16 @@ def cmd_bank(args) -> int:
     act = args.bank_action
 
     if act == "add":
-        rss = {k: parse_amount(v) for k, v in zip(
-            ("food", "stone", "wood", "ore", "gold"), args.amount)}
+        try:
+            rss = {k: parse_amount(v, allow_zero=True) for k, v in zip(
+                ("food", "stone", "wood", "ore", "gold"), args.amount)}
+        except ParseError as exc:
+            print(f"jumlah tidak valid: {exc}")
+            print('contoh: code.py bank add budi --amount 10m 0 0 0 0')
+            return 2
+        if not any(rss.values()):
+            print("semua jumlah 0 — tidak ada yang ditambahkan")
+            return 2
         print(json.dumps(bank.credit(args.nick, rss, note="topup manual", actor="cli"),
                          indent=2, ensure_ascii=False))
     elif act == "list":
@@ -473,6 +482,104 @@ def _grab(cfg, out: str) -> Optional[str]:
     return str(path)
 
 
+
+# --------------------------------------------------------------------------- #
+# Subcommand: setup (konfigurasi awal tanpa buka Notepad)
+# --------------------------------------------------------------------------- #
+def cmd_setup(args) -> int:
+    """Tulis nick owner/whitelist & device ke config/settings.yaml."""
+    import re
+
+    cfg = load_config(args.config)
+    path = cfg.path
+    text = path.read_text(encoding="utf-8")
+    nick = (args.nick or "").strip()
+
+    if not nick:
+        print("pakai: lmbot setup --nick \"Arken Ega\"")
+        return 2
+
+    changed = []
+    # owner_nick
+    if re.search(r"^\s*owner_nick:.*$", text, re.M):
+        text = re.sub(r"^\s*owner_nick:.*$", f"  owner_nick: {nick}", text, count=1, flags=re.M)
+        changed.append(f"owner_nick = {nick}")
+    # allowed_senders (baris '- xxx' pertama di bawah key itu)
+    if re.search(r"allowed_senders:", text):
+        text = re.sub(
+            r"(allowed_senders:[^\n]*\n)(\s*-[^\n]*\n)+",
+            lambda m: m.group(1) + f"    - {nick}\n",
+            text, count=1,
+        )
+        changed.append(f"allowed_senders = [{nick}]")
+    # owners (R6) — tambah blok bila belum ada
+    if re.search(r"^\s*owners:", text, re.M):
+        text = re.sub(r"(^\s*owners:[^\n]*\n)(\s*-[^\n]*\n)+",
+                      lambda m: m.group(1) + f"    - {nick}\n", text, count=1, flags=re.M)
+    else:
+        text = re.sub(r"^(bot:\s*\n)", r"\1  owners:                     # R6, akses penuh\n    - " + nick + "\n",
+                      text, count=1, flags=re.M)
+    changed.append(f"owners = [{nick}] (R6)")
+
+    # device.serial & resolusi (opsional)
+    if args.port:
+        text = re.sub(r"^(\s*serial:).*$", f"\g<1> 127.0.0.1:{args.port}", text, count=1, flags=re.M)
+        changed.append(f"serial = 127.0.0.1:{args.port}")
+    if args.width and args.height:
+        text = re.sub(r"^(\s*width:).*$", f"\g<1> {args.width}", text, count=1, flags=re.M)
+        text = re.sub(r"^(\s*height:).*$", f"\g<1> {args.height}", text, count=1, flags=re.M)
+        changed.append(f"resolusi = {args.width}x{args.height}")
+
+    path.write_text(text, encoding="utf-8")
+    print(f"✔ {path} diperbarui:")
+    for c in changed:
+        print(f"   - {c}")
+
+    # verifikasi hasil parse
+    try:
+        cfg2 = load_config(path)
+        print(f"\n✔ config valid. Owner '{cfg2.get('bot.owner_nick')}' akan mendapat rank R6.")
+    except Exception as exc:
+        print(f"\n⚠️  config tidak valid setelah diubah: {exc}")
+        return 1
+    print("Langkah berikut: lmbot doctor")
+    return 0
+
+
+# --------------------------------------------------------------------------- #
+# Subcommand: info (cara kerja bot, singkat)
+# --------------------------------------------------------------------------- #
+def cmd_info(args) -> int:  # noqa: C901
+    from .about import AUTHOR, TAGLINE, VERSION
+    from .imaging import EXPECTED_TEMPLATES, list_templates
+    from .config import load_config as _load
+
+    cfg = _load(args.config)
+    tdir = cfg.resolve_path(cfg.get("templates.dir", "assets/templates"))
+    fdir = cfg.resolve_path(cfg.get("flows.dir", "config/flows"))
+    from .flows import load_flows
+
+    flows = load_flows(fdir)
+    aktif = sorted(k for k, v in flows.items() if v.enabled)
+    print(f"{C.cmd}LMBot v{VERSION}{C.end} — {TAGLINE}")
+    print(f"Dibuat oleh {AUTHOR}\n")
+    print("CARA KERJA (5 langkah):")
+    print("  1. Sumber perintah  : terminal / file / webhook / chat_tail")
+    print("  2. Parser           : teks -> perintah + argumen (lmbot/parser.py)")
+    print("  3. Otorisasi        : whitelist + rank R1-R6 (lmbot/roles.py)")
+    print("  4. Buku besar       : debit/credit + audit + refund (lmbot/state.py)")
+    print("  5. Aksi di layar    : flow YAML -> screenshot/tap/ketik via ADB (lmbot/ops.py)")
+    print()
+    print(f"device   : {cfg.get('device.driver')} {cfg.get('device.serial')} "
+          f"({cfg.get('device.width')}x{cfg.get('device.height')})")
+    print(f"owner    : {cfg.get('bot.owner_nick')} (R6)")
+    print(f"flow     : {len(flows)} terbaca, {len(aktif)} aktif")
+    tstatus = list_templates(tdir)
+    print(f"template : {sum(tstatus.values())}/{len(EXPECTED_TEMPLATES)} siap")
+    print(f"bank     : {cfg.resolve_path(cfg.get('bank.path'))}")
+    return 0
+
+
 # --------------------------------------------------------------------------- #
 def main(argv: Optional[list] = None) -> int:
     ap = argparse.ArgumentParser(
@@ -499,6 +606,16 @@ def main(argv: Optional[list] = None) -> int:
     p_once.add_argument("text", nargs="+")
     p_once.add_argument("--sender", default=None)
     p_once.set_defaults(func=cmd_once)
+
+    p_setup = sub.add_parser("setup", help="set nick owner/whitelist tanpa buka Notepad")
+    p_setup.add_argument("--nick", default="", help='nick in-game, mis. "Arken Ega"')
+    p_setup.add_argument("--port", type=int, default=0, help="port ADB MuMu (mis. 16384)")
+    p_setup.add_argument("--width", type=int, default=0)
+    p_setup.add_argument("--height", type=int, default=0)
+    p_setup.set_defaults(func=cmd_setup)
+
+    p_info = sub.add_parser("info", help="ringkasan cara kerja & status")
+    p_info.set_defaults(func=cmd_info)
 
     p_doc = sub.add_parser("doctor", help="cek adb, emulator, flow, template")
     p_doc.set_defaults(func=cmd_doctor)
