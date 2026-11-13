@@ -71,7 +71,14 @@ class _Handler(BaseHTTPRequestHandler):
         return hdr == self.token
 
     def do_GET(self):  # health
-        body = json.dumps({"ok": True, "uptime": self.bot.uptime() if self.bot else ""}).encode()
+        from .about import AUTHOR, VERSION
+
+        body = json.dumps({
+            "ok": True,
+            "uptime": self.bot.uptime() if self.bot else "",
+            "version": VERSION,
+            "author": AUTHOR,
+        }).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))

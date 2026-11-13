@@ -21,5 +21,6 @@ if ($Config) { $argsList += @("--config", $Config) }
 if ($DryRun) { $argsList += "--dry-run" }
 if ($Mode -eq "http") { $argsList += @("--http-port", "$Port"); if ($Token) { $argsList += @("--token", $Token) } }
 
+Write-Host "[lmbot] Dibuat oleh Egandika" -ForegroundColor DarkGray
 Write-Host "[lmbot] $py $($argsList -join ' ')" -ForegroundColor DarkGray
 & $py @argsList

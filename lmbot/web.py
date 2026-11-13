@@ -3,7 +3,7 @@
 Satu server, dua fungsi:
   GET  /            -> halaman HTML status (saldo, transaksi, alert, template)
   GET  /api/status  -> JSON status
-  POST /            -> kirim perintah ({"text": "!bal", "sender": "lady_ayu"})
+  POST /            -> kirim perintah ({"text": "!bal", "sender": "arken_ega"})
 
 Aman untuk LAN: token opsional (header X-Bot-Token atau ?token=).
 """
@@ -71,6 +71,7 @@ def _page(bot) -> str:
  code{{background:#0b0d11;padding:1px 5px;border-radius:4px}}
 </style></head><body>
 <header><h1>LMBot — Guild Bank Lord Mobile</h1>
+<div class=dim>Dibuat oleh Egandika</div>
 <div class=dim>uptime {bot.uptime()} · {html.escape(bot.summary())}</div></header>
 <main>
 <section><h2>Status bank</h2>{banner}
@@ -83,8 +84,11 @@ def _page(bot) -> str:
 <section><h2>Template UI</h2>
 <table><tr><th>Nama</th><th>Siap</th><th>Fungsi</th></tr>{tpl_rows}</table></section>
 <section><h2>Peringatan</h2><ul>{arows}</ul>
-<p class=dim>Kirim perintah: <code>POST / {"{"}"text":"!bal","sender":"lady_ayu"{"}"}</code></p></section>
-</main></body></html>"""
+<p class=dim>Kirim perintah: <code>POST / {"{"}"text":"!bal","sender":"arken_ega"{"}"}</code></p></section>
+</main>
+<footer style="padding:10px 22px 22px;color:#7f879a;font-size:12px">
+ LMBot · Dibuat oleh Egandika
+</footer></body></html>"""
 
 
 class _DashboardHandler(BaseHTTPRequestHandler):

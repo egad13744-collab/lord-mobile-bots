@@ -35,10 +35,10 @@ def cfg(tmp_path):
 @pytest.fixture()
 def bank(cfg):
     b = BankStore(cfg, path=cfg.get("bank.path"))
-    b.roster.set_member("lady_ayu", "R5")
+    b.roster.set_member("arken_ega", "R5")
     b.roster.set_member("officer", "R4")
     b.roster.set_member("member", "R1")
-    b.credit("lady_ayu", {"food": 50_000_000, "stone": 10_000_000, "wood": 5_000_000,
+    b.credit("arken_ega", {"food": 50_000_000, "stone": 10_000_000, "wood": 5_000_000,
                           "ore": 2_000_000, "gold": 1_000_000})
     return b
 

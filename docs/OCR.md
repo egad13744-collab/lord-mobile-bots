@@ -94,7 +94,7 @@ def on_message(msg):
 ## Format baris chat yang diharapkan
 
 ```
-[R4] lady_ayu: !food 10m
+[R4] arken_ega: !food 10m
 [R4] !transfer budi ore 1m
 ```
 
@@ -104,5 +104,5 @@ Nick pengirim harus ada di whitelist agar perintah dieksekusi.
 ## Uji parser tanpa OCR
 
 ```powershell
-python code.py --dry-run serve --once "[R4] lady_ayu: !shield"
+python code.py --dry-run serve --once "[R4] arken_ega: !shield"
 ```

@@ -17,8 +17,8 @@ def dashboard(cfg, tmp_path):
     cfg.data["bank"]["path"] = str(tmp_path / "bank.json")
     ops = MockOps()
     bot = Bot(cfg, ops)
-    bot.bank.roster.set_member("lady_ayu", "R5")
-    bot.bank.credit("lady_ayu", {"food": 42_000_000})
+    bot.bank.roster.set_member("arken_ega", "R5")
+    bot.bank.credit("arken_ega", {"food": 42_000_000})
     srv = start_dashboard(bot, host="127.0.0.1", port=0, token="")
     port = srv.server_address[1]
     yield bot, f"http://127.0.0.1:{port}"
@@ -45,7 +45,7 @@ def test_dashboard_post_command(dashboard):
     _bot, base = dashboard
     req = urllib.request.Request(
         base + "/",
-        data=json.dumps({"text": "!top", "sender": "lady_ayu"}).encode(),
+        data=json.dumps({"text": "!top", "sender": "arken_ega"}).encode(),
         headers={"Content-Type": "application/json"},
     )
     body = json.loads(urllib.request.urlopen(req).read())
@@ -78,3 +78,9 @@ def test_dashboard_token_required(cfg, tmp_path):
         assert b"Guild Bank" in ok.read()
     finally:
         srv.shutdown()
+
+
+def test_dashboard_credit_footer(dashboard):
+    _bot, base = dashboard
+    html = urllib.request.urlopen(base + "/").read().decode()
+    assert "Dibuat oleh Egandika" in html

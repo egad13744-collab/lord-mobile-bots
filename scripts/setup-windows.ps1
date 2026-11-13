@@ -23,6 +23,7 @@ Write-Host @"
  |_____|_|  |_|_| \_\___/ |_.__/
   Setup lingkungan bot (MuMu + ADB)
 "@ -ForegroundColor Green
+Write-Host "  Dibuat oleh Egandika" -ForegroundColor DarkGray
 
 # 1. Python ---------------------------------------------------------------
 Info "cek Python..."

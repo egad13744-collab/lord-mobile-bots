@@ -74,7 +74,7 @@ class Bot:
 
     def handle_line(self, line: str, sender: Optional[str] = None) -> BotReply:
         started = time.perf_counter()
-        sender = sender or self.cfg.get("bot.owner_nick", "lady_ayu")
+        sender = sender or self.cfg.get("bot.owner_nick", "arken_ega")
         text = (line or "").strip()
         self.stats["received"] += 1
         if not text:

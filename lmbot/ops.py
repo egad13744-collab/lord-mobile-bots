@@ -100,7 +100,7 @@ class MockOps(GameOps):
             if isinstance(item, str) and ":" in item:
                 sender, _, text = item.partition(":")
                 return [ChatLine(sender.strip(), text.strip())]
-            return [ChatLine("lady_ayu", str(item))]
+            return [ChatLine("arken_ega", str(item))]
         return []
 
     def in_guild_map(self) -> bool:

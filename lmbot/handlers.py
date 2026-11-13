@@ -195,6 +195,7 @@ class Handlers:
                 "top": self.h_top,
                 "sync": self.h_sync,
                 "alerts": self.h_alerts,
+                "version": self.h_version,
                 "rss": self.h_rss,
                 "donate": self.h_donate,
                 "adminrss": self.h_adminrss,
@@ -779,6 +780,13 @@ class Handlers:
             "• Isi tas bank di game belum dibaca otomatis (butuh OCR, opsional).\n"
             "Bandingkan dengan !adminbag lalu koreksi lewat !setbal bila perlu.",
             total=total,
+        )
+
+    def h_version(self, cmd: Cmd, ctx: Context) -> Result:
+        from .about import AUTHOR, VERSION
+
+        return Result.success(
+            f"🤖 LMBot v{VERSION}\n👤 Dibuat oleh {AUTHOR}", version=VERSION, author=AUTHOR
         )
 
     def h_alerts(self, cmd: Cmd, ctx: Context) -> Result:

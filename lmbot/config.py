@@ -36,8 +36,8 @@ DEFAULTS: Dict[str, Any] = {
     },
     "bot": {
         "name": "LMBot",
-        "owner_nick": "lady_ayu",
-        "allowed_senders": ["lady_ayu"],
+        "owner_nick": "arken_ega",
+        "allowed_senders": ["arken_ega"],
         "guild_name": "GUILD",
         "poll_interval": 3.0,
         "max_commands_per_minute": 20,

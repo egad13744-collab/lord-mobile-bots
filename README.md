@@ -1,5 +1,7 @@
 # LMBot — Bot Guild Bank Lord Mobile (MuMu Player + ADB)
 
+> **Dibuat oleh Egandika** · MIT License
+
 Bot yang dijalankan **di terminal sesi RDP Windows**, menemani **MuMu Player**.
 Perintahnya mengikuti daftar di gambar: **GUILD, SEARCH, BALANCE, RSS**
 (`!bal`, `!transfer`, `!food 100m`, `!relocate 123 456`, `!whitelist nick R3`, …).
@@ -40,13 +42,16 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 Setelah bot hidup, di prompt `lmbot>`:
 
 ```
-!whitelist lady_ayu R5
-!setbal lady_ayu food 100m
+!whitelist arken_ega R5
+!setbal arken_ega food 100m
 !bal
 !food 10m
 ```
 
-Panduan langkah demi langkah: **[docs/SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md)**.
+📖 **Baru pertama kali?** Ikuti tutorial dari nol (buka terminal → unduh MuMu →
+pasang → jalankan): **[docs/TUTORIAL.md](docs/TUTORIAL.md)**
+
+Panduan ringkas teknis: **[docs/SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md)**.
 
 ### Tanpa emulator (uji logika dulu)
 
@@ -134,8 +139,8 @@ python code.py demo                       # simulasi tanpa emulator
 python code.py doctor                     # cek adb, emulator, flow, template
 python code.py serve                      # bot interaktif
 python code.py serve --source file        # perintah dari state/commands.txt (sender|!cmd)
-python code.py serve --http-port 8080     # webhook: POST {"text":"!bal","sender":"lady_ayu"}
-python code.py cmd "!shield" --sender lady_ayu
+python code.py serve --http-port 8080     # webhook: POST {"text":"!bal","sender":"arken_ega"}
+python code.py cmd "!shield" --sender arken_ega
 python code.py bank add budi --amount 1m 0 0 0 0
 python code.py bank list --key food
 python code.py bank whitelist budi --rank R3
@@ -232,13 +237,25 @@ lmbot/
 config/settings.yaml     konfigurasi utama
 config/flows/*.yaml      koordinat alur UI (kalibrasi di sini)
 scripts/                 setup-windows.ps1, start-bot.ps1/.bat
-docs/                    SETUP-WINDOWS, CALIBRATION, OCR
+docs/                    TUTORIAL, SETUP-WINDOWS, CALIBRATION, OCR, ASSETS
 assets/templates/        16 template terukur dari screenshot asli (1600x720)
 tests/                   82 test tanpa emulator (pytest)
 .github/workflows/       CI (matrix Python × OS, plus tanpa OpenCV)
 ```
 
-## 7. Development
+## 7. Tentang
+
+| | |
+|---|---|
+| **Dibuat oleh** | **Egandika** |
+| Versi | 1.0.0 (`!version` di chat, atau `python code.py --version`) |
+| Lisensi | MIT — lihat `LICENSE` |
+| Tutorial | `docs/TUTORIAL.md` (dari buka terminal sampai bot jalan) |
+
+Atribusi ini tampil di banner terminal, footer dashboard, `GET /` webhook,
+`!version` di chat, lalu judul jendela `scripts/start-bot.bat`.
+
+## 8. Development
 
 ```bash
 pip install -r requirements.txt
