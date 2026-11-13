@@ -127,7 +127,12 @@ class MockOps(GameOps):
 
 
 class DryRunOps(MockOps):
-    """Bungkus ops asli: semua aksi dicatat, tidak ada yang sampai ke emulator."""
+    """Bungkus ops asli: semua aksi dicatat, tidak ada yang sampai ke emulator.
+
+    Catatan: meski `inner` diberikan, metode aksi sengaja TIDAK diteruskan ke
+    inner — dry-run harus 100% aman. Hanya pembacaan chat yang diteruskan
+    supaya `--source chat --dry-run` tetap bisa mendengar perintah.
+    """
 
     def __init__(self, inner: Optional[GameOps] = None, logger=None):
         super().__init__()
