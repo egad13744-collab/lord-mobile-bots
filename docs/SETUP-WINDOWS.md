@@ -135,6 +135,31 @@ curl -X POST http://192.168.1.10:8080/ -H "Content-Type: application/json" \
 
 ---
 
+## 5b. Dashboard & monitoring dari HP
+
+```powershell
+.\scripts\start-bot.ps1 -Mode http -Port 8080
+# lalu buka http://<ip-mesin-rdp>:8081/
+```
+
+Atau langsung lewat CLI: `python code.py serve --web-port 8081 --token rahasia`.
+
+Isi dashboard: total tabungan, top penabung, 15 transaksi terakhir, status
+14 template UI, dan peringatan terakhir. Endpoint JSON: `/api/status`.
+Kirim perintah lewat dashboard juga bisa (`POST /`).
+
+Set token bila mesin berada di jaringan bersama (`web.token` atau `--token`).
+
+Peringatan juga bisa dikirim ke Discord/Slack:
+
+```yaml
+alerts:
+  webhook_url: 'https://discord.com/api/webhooks/xxxx/yyyy'
+  min_level: warn
+```
+
+---
+
 ## 6. Menjaga sesi tetap aktif (penting untuk RDP)
 
 Windows memutus render saat RDP disconnect. Pilih salah satu:
@@ -185,6 +210,8 @@ Cek juga `device.screenshot_timeout` (naikkan ke 30) bila PC lambat.
 | `kamu ada di blacklist` | Hapus: `python code.py bank blacklist`/edit `state/bank.json` |
 | `bank sedang dijeda` | Ada `!stop`/`!abort` aktif: `python code.py bank unfreeze` |
 | Bot lambat | Turunkan resolusi MuMu ke 1280×720, naikkan `bot.poll_interval` |
-| Saldo di bot beda dengan game | Bot memakai buku besar sendiri; sinkronkan dengan `bank add` atau `!setbal` |
+| Saldo di bot beda dengan game | Bot memakai buku besar sendiri; bandingkan dengan `!sync`/`!adminbag`, koreksi lewat `bank add` atau `!setbal` |
+| `flow ... percobaan 1 gagal` di log | Bot otomatis retry; bila berulang, koordinat/template perlu diperbaiki (docs/ASSETS.md) |
+| `tidak di layar bank/peta klan` | Bot berada di layar lain; buka peta klan / panel bank, atau sesuaikan template |
 
 Log lengkap: `logs/bot.log` dan audit transaksi `state/transactions.jsonl`.

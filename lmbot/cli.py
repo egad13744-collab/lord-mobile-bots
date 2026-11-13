@@ -46,21 +46,36 @@ def build_bot(args) -> Bot:
     if args.dry_run:
         cfg.data["bot"]["dry_run"] = True
     logger = setup_logging(cfg, verbose=args.verbose)
+    from .alerts import AlertSink
+    from .diagnostics import warn_insecure_defaults
+
+    if cfg.get("diagnostics.enabled", True):
+        warn_insecure_defaults(cfg, logger.warning)
+    alerts = AlertSink(cfg, logger)
 
     if cfg.get("device.driver") == "mock" or args.dry_run:
         ops = MockOps()
+        ops.alerts = alerts
         logger.info("driver: MOCK (dry-run, tidak menyentuh emulator)")
     else:
         from .device import build_driver
         from .vision import TemplateMatcher
 
-        driver = build_driver(cfg, logger=logger.info)
+        from .device import DeviceSession
+
+        raw_driver = build_driver(cfg, logger=logger.info)
+        driver = DeviceSession(
+            raw_driver,
+            retries=int(cfg.get("device.reconnect_retries", 2)),
+            backoff=float(cfg.get("device.reconnect_backoff", 2.0)),
+            logger=logger.info,
+        )
         driver.connect()
         matcher = TemplateMatcher(
             cfg.resolve_path(cfg.get("templates.dir", "assets/templates")),
             float(cfg.get("templates.threshold", 0.86)),
         )
-        ops = AdbOps(cfg, driver, logger=logger.info, matcher=matcher)
+        ops = AdbOps(cfg, driver, logger=logger.info, matcher=matcher, alerts=alerts)
         logger.info(f"driver: ADB {cfg.get('device.serial')} ({driver.width}x{driver.height})")
     return Bot(cfg, ops, logger=logger)
 
@@ -171,6 +186,15 @@ def cmd_serve(args) -> int:
 
     source = args.source or "terminal"
     srv = None
+    web_port = args.web_port or (int(bot.cfg.get("web.port", 8081)) if bot.cfg.get("web.enabled") else 0)
+    if web_port:
+        from .web import start_dashboard
+
+        dash = start_dashboard(
+            bot, host=bot.cfg.get("web.host", "0.0.0.0"), port=web_port,
+            token=args.token or bot.cfg.get("web.token", ""),
+        )
+        print(f"dashboard: http://{bot.cfg.get('web.host')}:{dash.server_address[1]}/")
     if source == "http" or args.http_port:
         from .chat import start_http
 
@@ -242,6 +266,9 @@ DEMO_SCENARIO = [
     ("lady_ayu", "!abort"),
     ("lady_ayu", "!members"),
     ("lady_ayu", "!stats all"),
+    ("budi", "!help RSS"),
+    ("lady_ayu", "!guild AYU"),
+    ("lady_ayu", "!guild AYU confirm"),
     ("budi", "!bulanbaru"),
 ]
 
@@ -254,6 +281,7 @@ def cmd_demo(args) -> int:
     cfg.data["device"]["driver"] = "mock"
     cfg.data["bot"]["reply_confirm"] = False
     cfg.data["bot"]["log_file"] = "logs/demo.log"
+    cfg.data["diagnostics"] = {"enabled": False}
     cfg.data["bank"]["path"] = args.state
     bank_path = cfg.resolve_path(args.state)
     if bank_path.exists() and not args.keep:
@@ -348,6 +376,102 @@ def cmd_record(args) -> int:
 
 
 # --------------------------------------------------------------------------- #
+# Subcommand: template (crop otomatis dari screenshot mentah)
+# --------------------------------------------------------------------------- #
+def cmd_template(args) -> int:
+    from .imaging import (
+        EXPECTED_TEMPLATES,
+        ImageError,
+        list_templates,
+        make_template,
+    )
+
+    cfg = load_config(args.config)
+    tdir = cfg.resolve_path(cfg.get("templates.dir", "assets/templates"))
+
+    if args.template_action == "list":
+        status = list_templates(tdir)
+        print(f"📁 {tdir}")
+        for name, desc in EXPECTED_TEMPLATES.items():
+            mark = f"{C.ok}✔{C.end}" if status[name] else f"{C.err}✘{C.end}"
+            print(f" {mark} {name:<16} {C.dim}{desc}{C.end}")
+        have = sum(status.values())
+        print(f"\n{have}/{len(status)} template siap.")
+        return 0 if have else 1
+
+    if not args.screen:
+        print("pakai: lmbot template add --screen logs/screen.png --name send_button --box 0.7,0.8,0.85,0.9")
+        return 2
+    try:
+        box = [float(v) for v in str(args.box).replace(";", ",").split(",")]
+        res = make_template(
+            args.screen,
+            args.name,
+            box,
+            tdir,
+            gray=not args.color,
+            scale=args.scale,
+            max_width=args.max_width,
+            preview=args.preview,
+        )
+    except ImageError as exc:
+        print(f"gagal: {exc}")
+        return 1
+    print(f"✔ template '{res.name}' dibuat: {res.path}")
+    print(f"  sumber   : {res.source_size[0]}x{res.source_size[1]}  crop px {res.box_px}")
+    print(f"  template : {res.template_size[0]}x{res.template_size[1]} px")
+    fx, fy, fw, fh = res.box_fraction
+    print(f"  fraksi   : [{fx}, {fy}, {fw}, {fh}]")
+    print(f"  untuk tap: tap: [{round(fx + fw/2, 4)}, {round(fy + fh/2, 4)}]  ← tempel di flow YAML")
+    return 0
+
+
+# --------------------------------------------------------------------------- #
+# Subcommand: verify (uji template terhadap screenshot tanpa emulator)
+# --------------------------------------------------------------------------- #
+def cmd_verify(args) -> int:
+    from .imaging import verify_template
+
+    cfg = load_config(args.config)
+    tdir = cfg.resolve_path(cfg.get("templates.dir", "assets/templates"))
+    screen = args.screen or (args.adb and _grab(cfg, args.out))
+    if not screen:
+        print("pakai: lmbot verify --screen logs/screen.png [--name send_button]")
+        return 2
+    names = [args.name] if args.name else sorted(
+        p.stem for p in Path(tdir).glob("*.png")
+    )
+    if not names:
+        print("belum ada template di", tdir)
+        return 1
+    worst = 0.0
+    for name in names:
+        res = verify_template(screen, name, tdir, threshold=args.threshold)
+        ok = res["found"]
+        mark = f"{C.ok}✔{C.end}" if ok else f"{C.err}✘{C.end}"
+        print(f" {mark} {name:<16} skor={res['score']:.3f} {res.get('center_fraction','')}")
+        if ok:
+            worst = min(worst or 1.0, float(res["score"]))
+    print()
+    if worst and worst < 0.75:
+        print(f"{C.err}Peringatan:{C.end} skor terendah {worst:.3f} — template bisa salah "
+              f"crop / beda resolusi. Crop ulang dengan box lebih tepat.")
+    return 0 if worst else 1
+
+
+def _grab(cfg, out: str) -> Optional[str]:
+    from .device import build_driver
+
+    drv = build_driver(cfg, logger=print)
+    drv.connect()
+    shot = drv.screenshot()
+    path = cfg.resolve_path(out)
+    shot.save(path)
+    print(f"screenshot: {path} ({shot.width}x{shot.height})")
+    return str(path)
+
+
+# --------------------------------------------------------------------------- #
 def main(argv: Optional[list] = None) -> int:
     ap = argparse.ArgumentParser(
         prog="lmbot",
@@ -365,6 +489,7 @@ def main(argv: Optional[list] = None) -> int:
     p_serve.add_argument("--http-port", type=int, default=0, help="aktifkan webhook di port ini")
     p_serve.add_argument("--http-host", default="0.0.0.0")
     p_serve.add_argument("--token", default=os.environ.get("LMBOT_TOKEN", ""))
+    p_serve.add_argument("--web-port", type=int, default=0, help="dashboard status (mis. 8081)")
     p_serve.add_argument("--once", nargs="*", help="jalankan perintah lalu keluar")
     p_serve.set_defaults(func=cmd_serve)
 
@@ -406,6 +531,28 @@ def main(argv: Optional[list] = None) -> int:
     p_demo.add_argument("--state", default="state/demo.json", help="file state simulasi")
     p_demo.add_argument("--keep", action="store_true", help="jangan hapus state lama")
     p_demo.set_defaults(func=cmd_demo)
+
+    p_tpl = sub.add_parser("template", help="buat/lihat template dari screenshot mentah")
+    tsub = p_tpl.add_subparsers(dest="template_action", required=True)
+    t_list = tsub.add_parser("list", help="cek template mana yang sudah ada")
+    t_list.set_defaults(func=cmd_template)
+    t_add = tsub.add_parser("add", help="crop screenshot -> template PNG")
+    t_add.add_argument("--screen", required=True, help="screenshot PNG fullscreen")
+    t_add.add_argument("--name", required=True, help="nama template (lihat: template list)")
+    t_add.add_argument("--box", required=True, help="x,y,w,h fraksi (0..1) atau piksel")
+    t_add.add_argument("--scale", type=float, default=1.0)
+    t_add.add_argument("--max-width", type=int, default=0)
+    t_add.add_argument("--color", action="store_true", help="simpan berwarna (default grayscale)")
+    t_add.add_argument("--preview", action="store_true", help="simpan juga versi besar berwarna")
+    t_add.set_defaults(func=cmd_template)
+
+    p_ver = sub.add_parser("verify", help="uji template terhadap screenshot")
+    p_ver.add_argument("--screen", default=None)
+    p_ver.add_argument("--adb", action="store_true", help="ambil screenshot dari emulator")
+    p_ver.add_argument("--out", default="logs/screen.png")
+    p_ver.add_argument("--name", default=None)
+    p_ver.add_argument("--threshold", type=float, default=0.86)
+    p_ver.set_defaults(func=cmd_verify)
 
     p_rec = sub.add_parser("record", help="ambil screenshot untuk kalibrasi koordinat")
     p_rec.add_argument("--out", default="logs/screen.png")

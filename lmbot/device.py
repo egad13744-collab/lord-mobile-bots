@@ -199,6 +199,7 @@ class MockDriver(BaseDriver):
 
     def screenshot(self) -> Screen:
         self._tick += 1
+        self.actions.append(("screenshot", self._tick))
         return Screen(self.width, self.height, b"MOCK", fmt="mock")
 
     def tap(self, x: int, y: int) -> None:
@@ -248,6 +249,94 @@ def start_mumu(
 def mumu_adb_command(manager_path: str = MUMU_DEFAULT_PATH, instance: int = 0) -> str:
     """Perintah MuMuManager untuk menyalakan ADB (jalankan di PowerShell)."""
     return f'"{manager_path}" adb -v {instance} -cmd "enable" -adb_host 127.0.0.1 -adb_port 16384'
+
+
+class DeviceSession:
+    """Bungkus driver dengan auto-reconnect + ketahanan saat emulator restart.
+
+    Semua aksi driver dilewatkan ke sini; bila DeviceError terjadi, sesi
+    mencoba `connect()` ulang dengan backoff sebelum meneruskan error.
+    """
+
+    def __init__(self, driver: BaseDriver, retries: int = 2, backoff: float = 2.0, logger=None):
+        self.driver = driver
+        self.retries = max(0, int(retries))
+        self.backoff = float(backoff)
+        self.log = logger
+        self.reconnects = 0
+        self.last_error: Optional[str] = None
+
+    # -- passthrough properti -- #
+    @property
+    def width(self) -> int:
+        return self.driver.width
+
+    @property
+    def height(self) -> int:
+        return self.driver.height
+
+    def _info(self, msg: str) -> None:
+        if self.log:
+            self.log(msg)
+
+    def _with_retry(self, label: str, fn):
+        attempt = 0
+        while True:
+            try:
+                return fn()
+            except DeviceError as exc:
+                self.last_error = str(exc)
+                if attempt >= self.retries:
+                    raise
+                attempt += 1
+                wait = self.backoff * attempt
+                self._info(f"[device] {label} gagal ({exc}); reconnect #{attempt} dalam {wait:.1f}s")
+                time.sleep(wait)
+                try:
+                    self.reconnect()
+                except DeviceError as rerr:
+                    self.last_error = str(rerr)
+                    if attempt >= self.retries:
+                        raise DeviceError(f"{exc} (reconnect juga gagal: {rerr})") from rerr
+
+    def reconnect(self) -> None:
+        self.reconnects += 1
+        try:
+            self.driver.close()
+        except Exception:
+            pass
+        self.driver.connect()
+        self._info(f"[device] tersambung kembali (total reconnect: {self.reconnects})")
+
+    # -- aksi -- #
+    def connect(self) -> None:
+        self._with_retry("connect", self.driver.connect)
+
+    def screenshot(self) -> Screen:
+        return self._with_retry("screenshot", self.driver.screenshot)
+
+    def tap(self, x: int, y: int) -> None:
+        self._with_retry("tap", lambda: self.driver.tap(x, y))
+
+    def swipe(self, x1: int, y1: int, x2: int, y2: int, duration_ms: int = 300) -> None:
+        self._with_retry("swipe", lambda: self.driver.swipe(x1, y1, x2, y2, duration_ms))
+
+    def text(self, value: str) -> None:
+        self._with_retry("text", lambda: self.driver.text(value))
+
+    def keyevent(self, code) -> None:
+        fn = getattr(self.driver, "keyevent", None)
+        if fn:
+            self._with_retry("keyevent", lambda: fn(code))
+
+    def tap_fraction(self, fx: float, fy: float) -> None:
+        self.tap(int(self.driver.width * fx), int(self.driver.height * fy))
+
+    def close(self) -> None:
+        try:
+            self.driver.close()
+        except Exception:
+            pass
 
 
 def adb_available(adb_path: str = "adb") -> bool:

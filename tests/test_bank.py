@@ -7,49 +7,12 @@ from pathlib import Path
 import pytest
 
 from lmbot.bot import Bot
-from lmbot.config import load_config
 from lmbot.handlers import Cmd, Context, Handlers
 from lmbot.ops import MockOps, OpsError
 from lmbot.parser import UnknownCommand, parse
 from lmbot.roles import PermissionError_, Roster
 from lmbot.state import BankStore, InsufficientFunds
 from lmbot.utils import ParseError, human, parse_amount, parse_rss_vector
-
-
-# --------------------------------------------------------------------------- #
-# fixtures
-# --------------------------------------------------------------------------- #
-@pytest.fixture()
-def cfg(tmp_path: Path):
-    c = load_config(Path(__file__).resolve().parent.parent / "config" / "settings.yaml")
-    c.data["device"]["driver"] = "mock"
-    c.data["bank"]["path"] = str(tmp_path / "bank.json")
-    c.data["bot"]["log_file"] = str(tmp_path / "bot.log")
-    c.data["bot"]["reply_confirm"] = False
-    c.data["safety"]["max_rss_per_transfer"] = 300_000_000
-    c.path = Path(__file__).resolve().parent.parent / "config" / "settings.yaml"
-    return c
-
-
-@pytest.fixture()
-def bank(cfg):
-    b = BankStore(cfg, path=cfg.get("bank.path"))
-    b.roster.set_member("lady_ayu", "R5")
-    b.roster.set_member("officer", "R4")
-    b.roster.set_member("member", "R1")
-    b.credit("lady_ayu", {"food": 50_000_000, "stone": 10_000_000, "wood": 5_000_000,
-                          "ore": 2_000_000, "gold": 1_000_000})
-    return b
-
-
-@pytest.fixture()
-def ops():
-    return MockOps()
-
-
-@pytest.fixture()
-def bot(cfg, bank, ops):
-    return Bot(cfg, ops, bank=bank)
 
 
 # --------------------------------------------------------------------------- #
@@ -296,3 +259,201 @@ def test_dry_run_never_touches_game(cfg, bank, ops):
     bot = Bot(cfg, ops, bank=bank)
     bot.handle_line("!food 1m", "lady_ayu")
     assert not [c for c in ops.calls if c[0] == "send_rss_to_member"]
+
+
+# --------------------------------------------------------------------------- #
+# fitur lanjutan: help/top/sync, konfirmasi 2 langkah, alert, chat_tail, lock
+# --------------------------------------------------------------------------- #
+def test_help_command(bot):
+    assert bot.handle_line("!help", "lady_ayu").ok
+    rss = bot.handle_line("!help RSS", "lady_ayu")
+    assert rss.ok and "RSS" in rss.message
+
+
+def test_top_command(bot, bank):
+    bank.credit("member", {"gold": 7})
+    reply = bot.handle_line("!top gold", "lady_ayu")
+    assert reply.ok and "member" in reply.message
+
+
+def test_sync_reports_total(bot, bank):
+    reply = bot.handle_line("!sync", "lady_ayu")
+    assert reply.ok and "Saldo tercatat" in reply.message
+
+
+def test_confirm_two_step(bot, ops):
+    first = bot.handle_line("!guild AYU", "lady_ayu")
+    assert first.ok and "Konfirmasi" in first.message
+    assert not ops.actions(), "aksi tidak boleh jalan sebelum konfirmasi"
+    second = bot.handle_line("!guild AYU confirm", "lady_ayu")
+    assert second.ok and "dipindahkan" in second.message
+    assert ops.actions() == ["guild"]
+
+
+def test_confirm_disabled(cfg, bank, ops):
+    cfg.data["bot"]["confirm_risky"] = False
+    bot = Bot(cfg, ops, bank=bank)
+    reply = bot.handle_line("!migrate 123 4 5", "lady_ayu")
+    assert reply.ok and ops.actions() == ["migrate"]
+
+
+def test_confirm_relocate(bot, ops):
+    assert "Konfirmasi" in bot.handle_line("!relocate 10 20", "lady_ayu").message
+    assert not ops.actions()
+
+
+def test_alert_on_failure(cfg, bank):
+    from lmbot.alerts import AlertSink
+
+    class BrokenOps(MockOps):
+        def send_rss_to_member(self, nick, rss):
+            raise OpsError("flow belum dikalibrasi")
+
+    sink = AlertSink(cfg, path=str(cfg.root / "logs" / "test-alerts.jsonl"))
+    ops = BrokenOps()
+    ops.alerts = sink
+    bot = Bot(cfg, ops, bank=bank)
+    reply = bot.handle_line("!food 1m", "lady_ayu")
+    assert not reply.ok
+    rows = sink.recent()
+    assert rows and rows[-1]["level"] == "error"
+    assert "!food" in rows[-1]["title"]
+
+
+def test_alert_throttle(cfg):
+    from lmbot.alerts import AlertSink
+
+    (cfg.root / "logs" / "thr.jsonl").unlink(missing_ok=True)
+    sink = AlertSink(cfg, path=str(cfg.root / "logs" / "thr.jsonl"))
+    sink.throttle = 60
+    sink.send("error", "sama", "halo")
+    sink.send("error", "sama", "halo lagi")
+    assert len(sink.recent()) == 1
+
+
+def test_alert_level_filter(cfg):
+    from lmbot.alerts import AlertSink
+
+    (cfg.root / "logs" / "lvl.jsonl").unlink(missing_ok=True)
+    sink = AlertSink(cfg, path=str(cfg.root / "logs" / "lvl.jsonl"))
+    sink.min_level = "error"
+    sink.send("info", "diam", "tidak dicatat")
+    sink.send("error", "tercatat", "ya")
+    assert [r["title"] for r in sink.recent()] == ["tercatat"]
+
+
+def test_chat_tail_reads_new_lines(cfg, tmp_path):
+    from lmbot.device import MockDriver
+    from lmbot.ops import AdbOps
+
+    tail = tmp_path / "chat.txt"
+    tail.write_text("", encoding="utf-8")
+    cfg.data["ui"]["chat_tail"] = str(tail)
+    ops = AdbOps(cfg, MockDriver())
+    assert ops.read_chat() == []
+    tail.write_text("budi: !bal\n", encoding="utf-8")
+    lines = ops.read_chat()
+    assert lines and lines[0].sender == "budi" and lines[0].text == "!bal"
+    # baris yang sama tidak dibaca dua kali
+    assert ops.read_chat() == []
+    tail.write_text("budi: !bal\nofficer: !shield\n", encoding="utf-8")
+    assert [ln.text for ln in ops.read_chat()] == ["!shield"]
+
+
+def test_read_chat_without_tail_explains_alternatives(cfg):
+    from lmbot.device import MockDriver
+    from lmbot.ops import AdbOps
+
+    cfg.data["ui"]["chat_tail"] = ""
+    with pytest.raises(OpsError) as exc:
+        AdbOps(cfg, MockDriver()).read_chat()
+    assert "chat_tail" in str(exc.value)
+    assert "terminal/file/http" in str(exc.value)
+
+
+def test_device_lock_serializes_calls(cfg):
+    import threading
+    import time as _time
+
+    from lmbot.device import MockDriver
+    from lmbot.ops import AdbOps, DEVICE_LOCK
+
+    ops = AdbOps(cfg, MockDriver())
+    order = []
+
+    def worker(tag):
+        with DEVICE_LOCK:
+            order.append(f"{tag}-start")
+            _time.sleep(0.02)
+            order.append(f"{tag}-end")
+
+    threads = [threading.Thread(target=worker, args=(t,)) for t in "ab"]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    # tidak boleh berselang-seling
+    assert order in (["a-start", "a-end", "b-start", "b-end"],
+                     ["b-start", "b-end", "a-start", "a-end"])
+
+
+# --------------------------------------------------------------------------- #
+# pengiriman multi-tipe (flow per tipe) & diagnosa config
+# --------------------------------------------------------------------------- #
+def test_send_per_type_flow(cfg, tmp_path):
+    """Bila bank_send_one_type ada, tiap tipe dikirim terpisah."""
+    from lmbot.device import MockDriver
+    from lmbot.ops import AdbOps
+
+    flows = tmp_path / "flows"
+    flows.mkdir()
+    (flows / "bank_open_member.yaml").write_text(
+        "name: bank_open_member\nsteps:\n  - type: '{nick}'\n", encoding="utf-8")
+    (flows / "bank_send_one_type.yaml").write_text(
+        "name: bank_send_one_type\nsteps:\n"
+        "  - type: '{type}:{amount}'\n  - wait: 0\n", encoding="utf-8")
+    cfg.data["flows"]["dir"] = str(flows)
+    cfg.data["safety"]["cooldown_between_transfers"] = 0
+    drv = MockDriver()
+    ops = AdbOps(cfg, drv)
+    ops.send_rss_to_member("budi", {"food": 1000, "ore": 500, "gold": 0})
+    assert drv.texts() == ["food:1000", "ore:500"]
+
+
+def test_send_falls_back_to_single_flow(cfg):
+    from lmbot.device import MockDriver
+    from lmbot.ops import AdbOps
+
+    cfg.data["flows"]["dir"] = str(cfg.root / "config" / "flows")
+    ops = AdbOps(cfg, MockDriver())
+    # semua flow kirim masih enabled: false -> error yang jelas, bukan crash
+    with pytest.raises(OpsError) as exc:
+        ops.send_rss_to_member("budi", {"food": 1000})
+    assert "dinonaktifkan" in str(exc.value)
+
+
+def test_send_rejects_empty_vector(cfg):
+    from lmbot.device import MockDriver
+    from lmbot.ops import AdbOps
+
+    with pytest.raises(OpsError):
+        AdbOps(cfg, MockDriver()).send_rss_to_member("budi", {"food": 0})
+
+
+def test_diagnostics_warn_defaults(cfg):
+    from lmbot.diagnostics import warn_insecure_defaults
+
+    emitted = []
+    found = warn_insecure_defaults(cfg, emitted.append)
+    assert any("lady_ayu" in m for m in found)
+    assert emitted == [f"⚠️  {m}" for m in found]
+
+
+def test_diagnostics_quiet_when_configured(cfg):
+    from lmbot.diagnostics import warn_insecure_defaults
+
+    cfg.data["bot"]["allowed_senders"] = ["bank_ayu"]
+    cfg.data["safety"]["whitelist_enforced"] = True
+    cfg.data["bot"]["confirm_risky"] = True
+    cfg.data["web"]["enabled"] = False
+    assert warn_insecure_defaults(cfg, lambda _m: None) == []

@@ -1,15 +1,17 @@
-# Membuka panel tabungan member di Bank klan lalu mencari nick member.
-# WAJIB dikalibrasi dulu: lihat docs/CALIBRATION.md
+# Buka panel bank klan lalu cari nick member.
+# WAJIB dikalibrasi: jalankan `lmbot record`, ukur tombol dengan
+# `tools/crop.py`, lalu ganti angka fraksi di bawah (docs/CALIBRATION.md).
 name: bank_open_member
 description: buka panel bank klan dan cari nick member
 enabled: false
 steps:
-  - tap: [0.30, 0.86]      # tombol "Bank"/"Guild Bank" di menu klan
+  - assert: guild_menu          # dilewati otomatis bila template belum ada
+  - tap: [0.300, 0.860]         # tombol Bank di menu klan
   - wait: 1.0
-  - assert: bank_panel     # template opsional; hapus bila belum ada
-  - tap: [0.50, 0.12]      # kolom pencarian member
+  - assert: bank_panel
+  - tap: [0.500, 0.120]         # kolom pencarian member
   - wait: 0.4
   - type: "{nick}"
   - wait: 1.0
-  - tap: [0.50, 0.25]      # hasil pertama
+  - tap: [0.500, 0.250]         # baris hasil pertama
   - wait: 1.0

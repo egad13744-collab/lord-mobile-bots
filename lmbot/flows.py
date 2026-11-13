@@ -52,7 +52,7 @@ def _parse_step(raw: Dict[str, Any]) -> Step:
     (kind, value), = raw.items()
     if kind not in {
         "tap", "tap_text", "wait", "swipe", "assert", "type", "back",
-        "key", "screenshot", "if_template", "swipe_until",
+        "key", "screenshot", "if_template", "swipe_until", "wait_stable",
     }:
         raise FlowError(f"jenis langkah tidak dikenal: {kind}")
     return Step(kind, value)
@@ -122,7 +122,16 @@ class FlowRunner:
         return int(x), int(y)
 
     def _assert_template(self, name: str, timeout: Optional[float] = None) -> bool:
+        """Tunggu template muncul. Bila template belum pernah dibuat, jangan blokir
+        (mode kalibrasi), tetapi catat peringatan sekali."""
         if not self.matcher:
+            return True
+        if not self.matcher.available().get(name):
+            if not getattr(self, "_warned_missing", None):
+                self._warned_missing = set()
+            if name not in self._warned_missing:
+                self._warned_missing.add(name)
+                self._log(f"[flow] template '{name}' belum ada — assert dilewati")
             return True
         deadline = time.monotonic() + (timeout or self.cfg.get("flows.step_timeout", 15.0))
         while time.monotonic() < deadline:
@@ -131,6 +140,18 @@ class FlowRunner:
                 return True
             time.sleep(0.5)
         raise FlowError(f"template '{name}' tidak muncul di layar")
+
+    def wait_for_frame(self, tries: int = 6, pause: float = 0.4) -> bool:
+        """Pastikan layar 'stabil' (dua screenshot berturut identik)."""
+        prev = None
+        for _ in range(max(1, tries)):
+            shot = self.driver.screenshot()
+            blob = shot.data[:4096] + bytes([len(shot.data) % 251])
+            if prev == blob:
+                return True
+            prev = blob
+            time.sleep(pause)
+        return False
 
     # -- eksekusi -- #
     def run(self, flow: Flow, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -150,6 +171,8 @@ class FlowRunner:
         kind, val = step.kind, step.value
         if kind == "wait":
             time.sleep(float(val))
+        elif kind == "wait_stable":
+            self.wait_for_frame(tries=int(val) if isinstance(val, (int, float)) else 6)
         elif kind == "tap":
             x, y = self.point(val)
             self.driver.tap(x, y)

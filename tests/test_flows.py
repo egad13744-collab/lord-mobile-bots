@@ -95,3 +95,62 @@ def test_decode_png_minimal():
     g = decode_png_gray(png)
     assert (g.width, g.height) == (2, 2)
     assert g.pixels == bytes([10, 20, 20, 40])
+
+
+def test_wait_stable_step():
+    cfg = load_config()
+    drv = MockDriver()
+    runner = FlowRunner(drv, cfg)
+    runner.run(Flow("t", steps=[Step("wait_stable", 2)]), {"tap_pause": 0})
+    assert [a[0] for a in drv.actions].count("screenshot") >= 2
+
+
+def test_assert_skipped_when_template_missing():
+    """Tanpa template PNG, assert tidak boleh memblokir (mode kalibrasi)."""
+    from lmbot.vision import TemplateMatcher
+
+    cfg = load_config()
+    drv = MockDriver()
+    matcher = TemplateMatcher(cfg.resolve_path("assets/templates"))
+    runner = FlowRunner(drv, cfg, matcher)
+    runner.run(Flow("t", steps=[Step("assert", "bank_panel")]))
+    assert drv.actions == []
+
+
+def test_device_session_retries_then_succeeds():
+    from lmbot.device import DeviceError, DeviceSession
+
+    class Flaky(MockDriver):
+        def __init__(self):
+            super().__init__()
+            self.fail = 2
+            self.connects = 0
+
+        def connect(self):
+            self.connects += 1
+
+        def screenshot(self):
+            if self.fail:
+                self.fail -= 1
+                raise DeviceError("emulator belum siap")
+            return super().screenshot()
+
+    drv = Flaky()
+    session = DeviceSession(drv, retries=3, backoff=0.0)
+    shot = session.screenshot()
+    assert shot.data == b"MOCK"
+    assert session.reconnects == 2
+    assert drv.connects == 2
+
+
+def test_device_session_gives_up():
+    from lmbot.device import DeviceError, DeviceSession
+
+    class Dead(MockDriver):
+        def screenshot(self):
+            raise DeviceError("mati")
+
+    session = DeviceSession(Dead(), retries=1, backoff=0.0)
+    with pytest.raises(DeviceError):
+        session.screenshot()
+    assert session.last_error == "mati"

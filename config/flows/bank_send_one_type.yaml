@@ -1,0 +1,24 @@
+# Kirim SATU tipe RSS dari panel bank ke member yang sedang dibuka.
+# Flow ini diputar sekali per tipe oleh ops.send_rss_to_member(), jadi
+# angka di bawah hanya perlu satu jalur — lebih mudah dikalibrasi.
+#
+# Placeholder yang tersedia:
+#   {nick}        -> nick tujuan
+#   {type}        -> food | stone | wood | ore | gold
+#   {type_label}  -> Food | Stone | Wood | Ore | Gold
+#   {amount}      -> jumlah mentah, mis. 10000000
+name: bank_send_one_type
+description: kirim satu tipe RSS ke member (diputar per tipe)
+enabled: false
+steps:
+  - assert: bank_panel          # pastikan panel bank memang terbuka
+  - tap: [0.300, 0.550]         # tab/kategori sesuai tipe -> ganti per tipe bila perlu
+  - wait: 0.6
+  - tap: [0.550, 0.620]         # kolom jumlah
+  - wait: 0.3
+  - type: "{amount}"
+  - wait: 0.3
+  - tap: [0.780, 0.860]         # tombol Kirim
+  - wait: 1.5
+  - if_template: {template: popup_ok, then: [0.500, 0.500]}   # konfirmasi bila muncul
+  - wait_stable: 4

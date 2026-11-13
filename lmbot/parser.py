@@ -49,7 +49,7 @@ class Command:
 # Registry
 # --------------------------------------------------------------------------- #
 def _s(name, pattern, category, usage, description, example="", **kw) -> CommandSpec:
-    params = tuple(m.group(1) for m in re.finditer(r"<(\w+)>", pattern))
+    params = tuple(m.group(1) for m in re.finditer(r"<(\w+)\??>", pattern))
     return CommandSpec(
         name=name,
         pattern=pattern,
@@ -66,7 +66,7 @@ SPECS: List[CommandSpec] = []
 
 # ---------------------------------- GUILD ---------------------------------- #
 SPECS += [
-    _s("guild", "guild <nick>", "GUILD", "!guild (nick klan)",
+    _s("guild", "guild <nick> ?confirm", "GUILD", "!guild (nick klan)",
        "memindahkan bank klan ke klan yang dituju", "!guild AYU", min_rank="R4", risky=True),
     _s("stats", "stats", "GUILD", "!stats", "melihat report kill monster", "!stats"),
     _s("stats_all", "stats all", "GUILD", "!stats all", "melihat report hadiah box klan", "!stats all"),
@@ -79,10 +79,10 @@ SPECS += [
     _s("shield", "shield", "GUILD", "!shield", "cek waktu shield bank", "!shield"),
     _s("shield_deploy", "shield deploy", "GUILD", "!shield deploy",
        "mengaktifkan shield bank", "!shield deploy", min_rank="R4", risky=True),
-    _s("relocate", "relocate <x> <y>", "GUILD", "!relocate (X)(Y)",
+    _s("relocate", "relocate <x> <y> ?confirm", "GUILD", "!relocate (X)(Y)",
        "memindahkan bank ke koordinat yang diminta", "!relocate 123 456",
        min_rank="R4", risky=True),
-    _s("relocatekvk", "relocatekvk <k>", "GUILD", "!relocatekvk (K)",
+    _s("relocatekvk", "relocatekvk <k> ?confirm", "GUILD", "!relocatekvk (K)",
        "memindahkan bank secara acak ke kd kvk", "!relocatekvk 2800",
        min_rank="R4", risky=True),
     _s("relocate_rand", "relocate rand", "GUILD", "!relocate rand",
@@ -112,7 +112,7 @@ SPECS += [
     _s("quest", "quest", "GUILD", "!quest", "cek misi GF bank", "!quest"),
     _s("setgather", "setgather <state>", "GUILD", "!setgather (on/off)",
        "mengaktifkan/menonaktifkan bot menambang", "!setgather on", min_rank="R4"),
-    _s("migrate", "migrate <k> <x> <y>", "GUILD", "!migrate k x y",
+    _s("migrate", "migrate <k> <x> <y> ?confirm", "GUILD", "!migrate k x y",
        "untuk memindahkan bank ke kd lain", "!migrate 123 4 5", min_rank="R5", risky=True),
     _s("snowbeast", "snowbeast", "GUILD", "!snowbeast",
        "mengaktifkan familiar snowbeast", "!snowbeast", min_rank="R4"),
@@ -181,6 +181,18 @@ SPECS += [
     _s("adminrss", "adminrss <f> <s> <w> <o> <g> <nick>", "RSS", "!adminrss",
        "mengirimkan semua tipe rss ke player yang dituju (hanya admin)",
        "!adminrss 1m 0 0 0 0 lady_ayu", min_rank="R5", risky=True),
+]
+
+# ----------------------------------- INFO ---------------------------------- #
+SPECS += [
+    _s("help", "help <category?>", "INFO", "!help",
+       "daftar perintah yang tersedia", "!help / !help RSS"),
+    _s("top", "top <key?>", "INFO", "!top (food/stone/wood/ore/gold)",
+       "peringkat penabung terbesar", "!top food"),
+    _s("sync", "sync", "INFO", "!sync",
+       "cek selisih saldo tercatat dengan isi tas bank", "!sync"),
+    _s("alerts", "alerts", "INFO", "!alerts",
+       "peringatan terakhir dari bot", "!alerts", min_rank="R4"),
 ]
 
 # Dynamic: !food 100m, !ore 50m, dst. (lihat build_rss_shortcuts)
@@ -252,6 +264,9 @@ def tokenize(text: str) -> List[str]:
     return [t.strip() for t in tokens if t.strip()]
 
 
+_OPTIONAL_PARAM = re.compile(r"^<(\w+)\?>$")
+
+
 def _token_matches(pattern_tok: str, token: str) -> Optional[str]:
     """None = tidak cocok, '' = token literal/flag cocok, selain itu = nilai param."""
     if pattern_tok.startswith("<"):
@@ -267,6 +282,14 @@ def _match(spec: CommandSpec, tokens: Sequence[str]) -> Optional[Dict[str, objec
     args: Dict[str, object] = {}
     i = 0
     for ptok in pat:
+        opt_param = _OPTIONAL_PARAM.match(ptok)
+        if opt_param:  # <category?> — nilai opsional bebas
+            if i < len(tokens):
+                args[opt_param.group(1)] = tokens[i]
+                i += 1
+            else:
+                args[opt_param.group(1)] = False
+            continue
         optional = ptok.startswith("?")
         key = ptok.strip("<>?")
         if i >= len(tokens):
@@ -290,6 +313,9 @@ def _match(spec: CommandSpec, tokens: Sequence[str]) -> Optional[Dict[str, objec
     for ptok in pat:
         if ptok.startswith("?"):
             args.setdefault(ptok[1:], False)
+        m = _OPTIONAL_PARAM.match(ptok)
+        if m:
+            args.setdefault(m.group(1), False)
     return args
 
 

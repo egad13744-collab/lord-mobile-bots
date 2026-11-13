@@ -104,6 +104,10 @@ Semua perintah diawali `!`. Bot hanya merespons pesan berawalan `[R4]`
 ### BALANCE
 | Kode | Fungsi | Rank |
 |---|---|---|
+| `!help [kategori]` | daftar perintah dari dalam chat | R1 |
+| `!top [food/...]` | peringkat penabung | R1 |
+| `!sync` | bandingkan saldo tercatat vs tas bank | R1 |
+| `!alerts` | peringatan terakhir bot | R4 |
 | `!bal` | cek tabungan sendiri | R1 |
 | `!adminbal` / `!adminbal (nick)` | RSS di luar tas / tabungan member | R4 |
 | `!adminbag` | RSS di dalam tas bank | R4 |
@@ -141,7 +145,27 @@ python code.py record --out logs/screen.png   # screenshot utk kalibrasi koordin
 
 ---
 
-## 4. Yang perlu dikalibrasi (penting)
+## 4. Fitur pendukung (bukan dari gambar, tapi penting)
+
+- **Konfirmasi 2 langkah** untuk aksi berbahaya: `!guild AYU` → bot minta
+  `!guild AYU confirm`. Berlaku untuk `!guild`, `!relocate`, `!relocatekvk`,
+  `!migrate` (`bot.confirm_risky`).
+- **Lock global device**: REPL + webhook + loop chat tidak akan saling
+  menimpa tap.
+- **Auto-reconnect**: bila ADB/MuMu putus, driver menyambung ulang dengan
+  backoff (`device.reconnect_retries`, default 2).
+- **Retry flow**: satu kali ulang otomatis + pemulihan layar (tombol back)
+  sebelum menyerah (`flows.max_retries`).
+- **Deteksi layar**: `main_map`/`guild_map`/`bank_panel`/`popup_ok` dipakai
+  untuk memastikan bot ada di layar yang benar dan menutup popup nyasar.
+- **Alert**: kegagalan aksi & device ditulis ke `logs/alerts.jsonl`, opsional
+  diteruskan ke webhook Discord/Slack (`alerts.webhook_url`).
+- **Dashboard**: `--web-port 8081` menampilkan saldo, transaksi, status
+  template, dan alert — bisa dibuka dari HP di LAN.
+- **Diagnosa config**: peringatan otomatis saat masih memakai nick contoh atau
+  mematikan pengaman.
+
+## 5. Yang perlu dikalibrasi (penting)
 
 Bot sudah **100% siap untuk logika**: parser, rank, saldo, whitelist, rate
 limit, audit, refund anti-balance-loss. Yang belum bisa ditebak dari gambar
@@ -153,7 +177,21 @@ adalah **posisi tombol UI di akunmu** — itu harus direkam sekali:
 3. Isi `config/flows/bank_open_member.yaml` & `bank_send_rss.yaml`,
    ubah `enabled: false` → `true`.
 
-Panduan detail + contoh angka: **[docs/CALIBRATION.md](docs/CALIBRATION.md)**.
+### Kirim screenshot, sisanya otomatis
+
+Kamu cukup mengirim screenshot mentah (fullscreen). Bot punya alat untuk
+memotong, mengecilkan, dan memverifikasi sendiri:
+
+```powershell
+python code.py template list                     # template apa yang masih kurang
+python code.py template add --screen shot.png --name send_button --box 0.70,0.80,0.12,0.08
+python code.py verify --screen shot.png          # skor + posisi tap yang benar
+python tools/crop.py shot.png --box 0.7,0.8,0.12,0.08 --out logs/kirim.png --scale 2
+```
+
+Detail (layar apa saja yang perlu dikirim, ukuran template ideal, arti skor):
+**[docs/ASSETS.md](docs/ASSETS.md)**. Panduan koordinat manual:
+**[docs/CALIBRATION.md](docs/CALIBRATION.md)**.
 
 Sampai kalibrasi selesai, perintah yang butuh aksi di game (mis. `!food 10m`)
 akan menolak dengan pesan jelas dan **saldo tidak berkurang** (debit
@@ -179,7 +217,10 @@ di-rollback otomatis). Perintah berbasis state (`!bal`, `!members`,
 ```
 code.py                  entry point (python code.py ...)
 lmbot/
-  config.py  device.py   config + driver ADB/Mock
+  config.py  device.py   config + driver ADB/Mock + auto-reconnect
+  imaging.py             crop/resize/encode PNG untuk template
+  alerts.py  diagnostics.py  peringatan & diagnosa konfigurasi
+  web.py                 dashboard status + webhook
   parser.py  roles.py    perintah & otorisasi rank
   handlers.py state.py   logika bisnis + buku besar saldo
   ops.py  flows.py       operasi game + engine flow YAML
@@ -189,14 +230,15 @@ config/settings.yaml     konfigurasi utama
 config/flows/*.yaml      koordinat alur UI (kalibrasi di sini)
 scripts/                 setup-windows.ps1, start-bot.ps1/.bat
 docs/                    SETUP-WINDOWS, CALIBRATION, OCR
-tests/                   46 test tanpa emulator (pytest)
+tests/                   79 test tanpa emulator (pytest)
+.github/workflows/       CI (matrix Python × OS, plus tanpa OpenCV)
 ```
 
 ## 7. Development
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q          # semua test tanpa emulator
+python -m pytest -q          # 79 test tanpa emulator
 python code.py --dry-run serve
 ```
 

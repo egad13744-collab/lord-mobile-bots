@@ -62,6 +62,7 @@ class Bot:
         self.bank = bank or BankStore(cfg)
         self.log = logger or setup_logging(cfg)
         self.ctx = Context(cfg=cfg, bank=self.bank, ops=ops, logger=self.log.info)
+        self.alerts = getattr(ops, "alerts", None)
         self.handlers: Handlers = build_handlers(self.ctx)
         self.limiter = RateLimiter(int(cfg.get("bot.max_commands_per_minute", 20)) or 20)
         self.stats: Dict[str, int] = {"received": 0, "executed": 0, "failed": 0, "ignored": 0}
@@ -134,6 +135,11 @@ class Bot:
             self.stats["executed"] += 1
         else:
             self.stats["failed"] += 1
+            if self.alerts and result.error:
+                self.alerts.send(
+                    "error", f"perintah !{parsed.spec.tokens[0]} gagal", result.error,
+                    sender=sender, command=cmd.name,
+                )
         msg = result.reply if result.ok else f"⚠️ {result.error}"
         return BotReply(result.ok, msg, cmd.name, _ms(started), sender)
 

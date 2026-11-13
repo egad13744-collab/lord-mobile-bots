@@ -30,6 +30,7 @@ DEFAULTS: Dict[str, Any] = {
         "chat_close": [0.94, 0.14],
         "chat_open_wait": 1.2,
         "chat_reply_wait": 2.0,
+        "chat_tail": "",
         "msg_prefix": "R4",
         "lang": "id",
     },
@@ -70,8 +71,18 @@ DEFAULTS: Dict[str, Any] = {
         "default_flow": "guild_bank",
         "step_timeout": 15.0,
         "tap_jitter": 4,
+        "max_retries": 1,
     },
     "templates": {"dir": "assets/templates", "threshold": 0.86},
+    "vision": {"min_confidence": 0.5},
+    "alerts": {
+        "file": "logs/alerts.jsonl",
+        "webhook_url": "",
+        "min_level": "warn",
+        "throttle_seconds": 30,
+    },
+    "diagnostics": {"enabled": True},
+    "web": {"enabled": False, "host": "0.0.0.0", "port": 8081, "token": ""},
 }
 
 

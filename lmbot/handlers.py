@@ -191,6 +191,10 @@ class Handlers:
                 "setbal": self.h_setbal,
                 "transfer": self.h_transfer,
                 # RSS ---------------------------------------------------
+                "help": self.h_help,
+                "top": self.h_top,
+                "sync": self.h_sync,
+                "alerts": self.h_alerts,
                 "rss": self.h_rss,
                 "donate": self.h_donate,
                 "adminrss": self.h_adminrss,
@@ -224,6 +228,26 @@ class Handlers:
                     f"Ubah safety.max_rss_per_transfer bila memang disengaja."
                 )
 
+    def _confirm_guard(self, cmd: Cmd, label: str) -> Optional[Result]:
+        """Konfirmasi 2 langkah untuk aksi berisiko.
+
+        Pola: `!guild AYU` -> bot minta `!guild AYU confirm`.
+        Berlaku bila bot.confirm_risky = true.
+        """
+        if not self.cfg.get("bot.confirm_risky", True):
+            return None
+        if cmd.get("confirm") is True:  # user sudah mengetik kata `confirm`
+            return None
+        args = {k: v for k, v in cmd.args.items() if k != "confirm"}
+        contoh = " ".join(str(v) for v in args.values() if isinstance(v, str) and v)
+        return Result(
+            True,
+            f"⚠️ Konfirmasi: {label}.\n"
+            f"Ketik ulang dengan kata `confirm` di akhir:\n"
+            f"!{cmd.name} {contoh} confirm".replace("  ", " "),
+            data={"pending": True},
+        )
+
     def _log_action(self, action: str, params: Optional[dict] = None, sender: str = "") -> None:
         self.ctx.log(f"[action] {action} {params or ''} oleh {sender or '-'}")
         self.ops.run_action(action, params or {})
@@ -233,6 +257,9 @@ class Handlers:
     # ================================================================ #
     def h_guild(self, cmd: Cmd, ctx: Context) -> Result:
         nick = self._nick(arg_nick(cmd.args))
+        pending = self._confirm_guard(cmd, f"pindahkan bank ke klan {nick}")
+        if pending:
+            return pending
         self._log_action("guild", {"nick": nick}, cmd.sender)
         return Result.success(
             f"🏰 Bank dipindahkan ke klan {nick}", action="guild", nick=nick
@@ -296,6 +323,9 @@ class Handlers:
 
     def h_relocate(self, cmd: Cmd, ctx: Context) -> Result:
         x, y = arg_coords(cmd.args)
+        pending = self._confirm_guard(cmd, f"pindahkan bank ke ({x}, {y})")
+        if pending:
+            return pending
         self._log_action("relocate", {"x": x, "y": y}, cmd.sender)
         return Result.success(f"🧭 Bank dipindahkan ke ({x}, {y})", action="relocate")
 
@@ -304,6 +334,9 @@ class Handlers:
             k = int(str(cmd.get("k")))
         except (TypeError, ValueError):
             return Result.fail("kode kvk harus angka, contoh !relocatekvk 2800")
+        pending = self._confirm_guard(cmd, f"pindahkan bank acak di KD {k}")
+        if pending:
+            return pending
         self._log_action("relocatekvk", {"k": k}, cmd.sender)
         return Result.success(f"🧭 Bank dipindahkan acak di KD {k}", action="relocatekvk")
 
@@ -417,6 +450,9 @@ class Handlers:
             k, x, y = int(str(cmd.get("k"))), int(str(cmd.get("x"))), int(str(cmd.get("y")))
         except (TypeError, ValueError):
             return Result.fail("format: !migrate (k) (x) (y), contoh !migrate 123 4 5")
+        pending = self._confirm_guard(cmd, f"migrasi bank ke KD {k} ({x}, {y})")
+        if pending:
+            return pending
         self._log_action("migrate", {"k": k, "x": x, "y": y}, cmd.sender)
         return Result.success(f"🚚 Bank dimigrasi ke KD {k} ({x}, {y})", action="migrate")
 
@@ -713,6 +749,47 @@ class Handlers:
         target = self._nick(arg_nick(cmd.args))
         vec = rss_vector(cmd.args, self.suffixes)
         return self._send_vector(cmd, target, vec, "adminrss")
+
+
+    # ================================================================ #
+    # INFO
+    # ================================================================ #
+    def h_help(self, cmd: Cmd, ctx: Context) -> Result:
+        return Result.success(help_text(self.cfg, str(cmd.get("category") or "").strip() or None))
+
+    def h_top(self, cmd: Cmd, ctx: Context) -> Result:
+        raw = str(cmd.get("key") or "food").strip().lower()
+        key = CODE_TO_KEY.get(raw.upper(), raw)
+        if key not in RSS_KEYS:
+            return Result.fail("key harus food/stone/wood/ore/gold")
+        rows = self.bank.leaderboard(key, limit=5)
+        if not rows:
+            return Result.success(f"📊 Belum ada saldo {key} tercatat")
+        lines = [f"🏆 Top 5 {self.ui_labels[key]}:"]
+        for i, (nick, val) in enumerate(rows, 1):
+            lines.append(f"{i}. {nick} — {human(val)}")
+        return Result.success("\n".join(lines), key=key)
+
+    def h_sync(self, cmd: Cmd, ctx: Context) -> Result:
+        total = self.bank.bank_total()
+        self._log_action("adminbag", {}, cmd.sender)
+        return Result.success(
+            "🔄 Sinkronisasi:\n"
+            f"• Saldo tercatat: {fmt_rss(total, self.ui_labels)}\n"
+            "• Isi tas bank di game belum dibaca otomatis (butuh OCR, opsional).\n"
+            "Bandingkan dengan !adminbag lalu koreksi lewat !setbal bila perlu.",
+            total=total,
+        )
+
+    def h_alerts(self, cmd: Cmd, ctx: Context) -> Result:
+        sink = getattr(self.ops, "alerts", None)
+        rows = sink.recent(5) if sink else []
+        if not rows:
+            return Result.success("✅ Tidak ada peringatan terbaru")
+        lines = ["⚠️ Peringatan terakhir:"]
+        for r in rows:
+            lines.append(f"• {r.get('time','')} [{r.get('level')}] {r.get('title')}")
+        return Result.success("\n".join(lines))
 
 
 # --------------------------------------------------------------------------- #

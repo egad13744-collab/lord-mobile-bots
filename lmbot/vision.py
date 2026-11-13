@@ -148,45 +148,99 @@ def to_gray(screen: Screen | bytes) -> "object":
 # Matching
 # --------------------------------------------------------------------------- #
 def _match_cv(screen_img, tpl_img) -> Tuple[float, int, int]:
+    """TM_CCOEFF_NORMED, dengan fallback TM_SQDIFF_NORMED untuk template polos.
+
+    Template hampir seragam (tombol warna solid) membuat korelasi tidak stabil;
+    untuk kasus itu selisih kuadrat ternormalisasi jauh lebih dapat diandalkan.
+    """
+    std = float(cv2.meanStdDev(tpl_img)[1][0][0])
+    if std < 8.0:
+        res = cv2.matchTemplate(screen_img, tpl_img, cv2.TM_SQDIFF_NORMED)
+        minv, _, minloc, _ = cv2.minMaxLoc(res)
+        return float(1.0 - minv), int(minloc[0]), int(minloc[1])
     res = cv2.matchTemplate(screen_img, tpl_img, cv2.TM_CCOEFF_NORMED)
     _, maxv, _, maxloc = cv2.minMaxLoc(res)
     return float(maxv), int(maxloc[0]), int(maxloc[1])
 
 
-def _match_py(screen: Gray, tpl: Gray, step: int = 2, coarse: int = 4) -> Tuple[float, int, int]:
-    """Fallback: cari selisih absolut paling kecil. Cukup untuk ikon solid."""
+def _match_py(screen: Gray, tpl: Gray, coarse: int = 8) -> Tuple[float, int, int]:
+    """Fallback tanpa OpenCV (jarang dipakai; OpenCV sangat disarankan).
+
+    Strategi dua tahap agar tetap cepat di 1280x720:
+      1. rough pass: sampling tiap `coarse` piksel untuk menemukan kandidat;
+      2. refine pass: periksa ±coarse di sekitar kandidat terbaik.
+
+    Catatan: skor pakai normalisasi pola (bukan selisih absolut) supaya
+    konsisten dengan TM_CCOEFF_NORMED saat template punya kontras rendah.
+    """
     if tpl.width >= screen.width or tpl.height >= screen.height:
         return 0.0, 0, 0
-    best = (-1.0, 0, 0)
-    for y in range(0, screen.height - tpl.height, coarse):
-        for x in range(0, screen.width - tpl.width, coarse):
+
+    tpl_step = max(1, min(4, tpl.width // 16, tpl.height // 16))
+    tpl_vals = [
+        tpl.pixels[j * tpl.width + i]
+        for j in range(0, tpl.height, tpl_step)
+        for i in range(0, tpl.width, tpl_step)
+    ]
+    n = len(tpl_vals)
+    tpl_mean = sum(tpl_vals) / n
+    tpl_dev = [v - tpl_mean for v in tpl_vals]
+    tpl_norm = sum(d * d for d in tpl_dev) ** 0.5
+    # Template hampir polos (tombol warna solid): korelasi tidak bermakna,
+    # pakai kemiripan intensitas (1 - rata-rata selisih).
+    flat = tpl_norm < 8.0
+
+    def score_at(x: int, y: int) -> float:
+        if flat:
             total = 0
-            n = 0
-            for j in range(0, tpl.height, 2):
+            k = 0
+            idx = 0
+            for j in range(0, tpl.height, tpl_step):
                 row = (y + j) * screen.width + x
-                trow = j * tpl.width
-                for i in range(0, tpl.width, 2):
-                    total += abs(screen.pixels[row + i] - tpl.pixels[trow + i])
-                    n += 1
-            score = 1.0 - (total / (n * 255.0)) if n else 0.0
-            if score > best[0]:
-                best = (score, x, y)
-    # refinement
-    score0, bx, by = best
+                for i in range(0, tpl.width, tpl_step):
+                    total += abs(screen.pixels[row + i] - tpl_vals[idx])
+                    idx += 1
+                    k += 1
+            return 1.0 - (total / (k * 255.0)) if k else 0.0
+        acc = 0.0
+        se = 0.0
+        k = 0
+        for j in range(0, tpl.height, tpl_step):
+            row = (y + j) * screen.width + x
+            for i in range(0, tpl.width, tpl_step):
+                v = screen.pixels[row + i]
+                acc += v
+                se += v * v
+                k += 1
+        if not k:
+            return -1.0
+        mean = acc / k
+        var = se / k - mean * mean
+        snorm = (var * k) ** 0.5 if var > 0 else 0.0
+        if snorm <= 0:
+            return 0.0
+        num = 0.0
+        idx = 0
+        for j in range(0, tpl.height, tpl_step):
+            row = (y + j) * screen.width + x
+            for i in range(0, tpl.width, tpl_step):
+                num += tpl_dev[idx] * (screen.pixels[row + i] - mean)
+                idx += 1
+        return num / (tpl_norm * snorm)
+
+    best = (-2.0, 0, 0)
+    for y in range(0, screen.height - tpl.height + 1, coarse):
+        for x in range(0, screen.width - tpl.width + 1, coarse):
+            sc = score_at(x, y)
+            if sc > best[0]:
+                best = (sc, x, y)
+    sc0, bx, by = best
     for y in range(max(0, by - coarse), min(screen.height - tpl.height, by + coarse) + 1):
         for x in range(max(0, bx - coarse), min(screen.width - tpl.width, bx + coarse) + 1):
-            total = 0
-            n = 0
-            for j in range(0, tpl.height, 2):
-                row = (y + j) * screen.width + x
-                trow = j * tpl.width
-                for i in range(0, tpl.width, 2):
-                    total += abs(screen.pixels[row + i] - tpl.pixels[trow + i])
-                    n += 1
-            score = 1.0 - (total / (n * 255.0)) if n else 0.0
-            if score > score0:
-                score0, bx, by = score, x, y
-    return score0, bx, by
+            sc = score_at(x, y)
+            if sc > sc0:
+                sc0, bx, by = sc, x, y
+    return sc0, bx, by
 
 
 class TemplateMatcher:
