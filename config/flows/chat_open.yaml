@@ -1,0 +1,8 @@
+# Membuka panel chat in-game.
+# Aktif by default: koordinat chat umumnya sama di semua akun.
+name: chat_open
+description: buka panel chat
+enabled: true
+steps:
+  - tap: [0.06, 0.92]      # ikon chat kanan-bawah
+  - wait: 1.2

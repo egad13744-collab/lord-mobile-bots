@@ -1,0 +1,10 @@
+# Buka kotak surat. Di Lord Mobile, klaim/hadiah RSS masuk lewat Surat,
+# bukan lewat "panel bank" seperti asumsi awal.
+name: open_mail
+description: buka ikon surat di bottom bar
+enabled: true
+steps:
+  - assert: main_hud
+  - tap: [0.6531, 0.9472]     # mail_button, terukur dari screenshot 1600x720
+  - wait: 1.5
+  - assert: {template: mail_button, timeout: 6}

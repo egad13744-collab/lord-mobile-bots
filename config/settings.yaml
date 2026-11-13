@@ -1,0 +1,88 @@
+# =============================================================================
+# LMBot — konfigurasi utama
+# Semua koordinat boleh berupa fraksi (0..1) supaya aman di resolusi apa pun.
+# =============================================================================
+device:
+  driver: adb                 # adb | mock (mock = simulasi, tanpa emulator)
+  adb_path: adb               # isi path lengkap, mis. C:\platform-tools\adb.exe
+  serial: 127.0.0.1:16384     # port ADB MuMu Player 12 (default instance 0)
+  width: 1280                 # resolusi instance MuMu
+  height: 720
+  density: 240
+  auto_connect: true          # jalankan `adb connect` sendiri bila perlu
+  mumu_manager: 'C:\Program Files\Netease\MuMuPlayer-12.0\shell\MuMuManager.exe'
+  screenshot_timeout: 20
+
+ui:
+  # koordinat elemen chat (fraksi layar)
+  chat_button: [0.06, 0.92]   # ikon chat kanan/bawah
+  chat_input: [0.50, 0.86]
+  chat_send: [0.94, 0.86]
+  chat_close: [0.94, 0.14]
+  chat_open_wait: 1.2
+  chat_reply_wait: 2.0
+  msg_prefix: R4              # bot hanya merespons pesan berawalan [R4]
+  lang: id
+  chat_tail: ''               # file berisi "nick: !perintah" dari OCR/bridge (lihat docs/OCR.md)
+
+bot:
+  name: LMBot
+  owner_nick: lady_ayu
+  allowed_senders:            # otomatis masuk whitelist R5 saat pertama kali
+    - lady_ayu
+  guild_name: GUILD
+  poll_interval: 3.0
+  max_commands_per_minute: 20
+  dry_run: false
+  reply_confirm: true         # kirim balasan ke chat game
+  reply_prefix: ''
+  log_file: logs/bot.log
+  unknown_command_hint: true
+
+diagnostics:
+  enabled: true              # tampilkan peringatan konfigurasi berisiko saat start
+
+alerts:
+  file: logs/alerts.jsonl
+  webhook_url: ''            # mis. URL Discord/Slack incoming webhook (opsional)
+  min_level: warn            # info | warn | error
+  throttle_seconds: 30
+
+web:
+  enabled: false             # dashboard status di http://<ip>:8081 (opsional)
+  host: 0.0.0.0
+  port: 8081
+  token: ''
+
+safety:
+  max_rss_per_transfer: 300000000    # batas per tipe per transaksi (default 300M)
+  max_balance_per_command: 100000000 # batas !setbal
+  allow_large_transfer: false
+  cooldown_between_transfers: 2.0
+  stop_if_not_in_guild_map: true
+  whitelist_enforced: true          # false = semua member boleh pakai R1
+
+bank:
+  path: state/bank.json
+  save_every_command: true
+  rss_units:
+    F: {key: food,  label: Food}
+    S: {key: stone, label: Stone}
+    W: {key: wood,  label: Wood}
+    O: {key: ore,   label: Ore}
+    G: {key: gold,  label: Gold}
+  amount_suffixes: {k: 1000, m: 1000000, b: 1000000000}
+
+flows:
+  dir: config/flows
+  default_flow: guild_bank
+  step_timeout: 15.0
+  tap_jitter: 4               # geser tap ±4 px agar tidak terlihat seperti macro kaku
+  max_retries: 1              # percobaan ulang otomatis bila flow gagal
+
+templates:
+  dir: assets/templates
+  threshold: 0.86             # skor minimal template dianggap cocok
+
+vision:
+  min_confidence: 0.5         # ambang deteksi layar (main_map, bank_panel, popup_ok)

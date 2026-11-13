@@ -1,0 +1,9 @@
+# Buka barak lalu naikkan training troop (dasar fitur !buildspam/!recall all).
+name: open_barak
+description: buka barak dan lihat tombol aksi
+enabled: true
+steps:
+  - assert: main_hud
+  - tap: [0.9044, 0.9403]     # barak_button
+  - wait: 1.5
+  - assert: {template: barak_actions, timeout: 8}

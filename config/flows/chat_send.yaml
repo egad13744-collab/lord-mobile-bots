@@ -1,0 +1,10 @@
+name: chat_send
+description: tulis & kirim satu pesan chat (dipakai untuk balasan bot)
+enabled: true
+steps:
+  - tap: [0.50, 0.86]      # kolom input chat
+  - wait: 0.4
+  - type: "{message}"      # diisi otomatis dari konteks
+  - wait: 0.3
+  - tap: [0.94, 0.86]      # tombol kirim
+  - wait: 1.5

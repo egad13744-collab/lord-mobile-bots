@@ -1,0 +1,11 @@
+# Buka panel Klan (dari ikon barak? tidak — dari menu klan di peta).
+# Koordinat tombol buka Klan BELUM ada di aset: butuh 1 screenshot tambahan
+# yang memperlihatkan tombol/menu Klan.
+name: open_guild
+description: buka panel Klan
+enabled: false
+steps:
+  - assert: main_hud
+  - tap: [0.5000, 0.5000]     # GANTI: titik tombol Klan
+  - wait: 1.5
+  - assert: {template: guild_tabs, timeout: 8}

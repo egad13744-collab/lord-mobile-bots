@@ -1,0 +1,12 @@
+# Ambil misi harian (fitur !quest).
+name: misi_harian
+description: buka misi dan selesaikan misi harian
+enabled: false
+steps:
+  - assert: main_hud
+  - tap: [0.7250, 0.9305]     # report_button (buku/laporan) -> sesuaikan
+  - wait: 1.5
+  - assert: {template: misi_tabs, timeout: 8}
+  - tap: [0.2100, 0.1950]     # tab "Harian"
+  - wait: 0.8
+  - screenshot: logs/misi_harian.png

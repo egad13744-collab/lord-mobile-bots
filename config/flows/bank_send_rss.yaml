@@ -1,0 +1,17 @@
+# Mengirim RSS dari bank ke satu member sesuai isi {rss}.
+# {rss} berisi JSON: {"food": 1000000, ...} — urutan field mengikuti
+# config bank.rss_units. Sesuaikan tap di bawah dengan UI bank klan kamu.
+name: bank_send_rss
+description: kirim RSS ke member dari panel bank
+enabled: false
+steps:
+  - tap: [0.30, 0.55]      # tab Food (ulangi utk Stone/Wood/Ore/Gold sesuai kebutuhan)
+  - wait: 0.6
+  - tap: [0.55, 0.62]      # kolom jumlah
+  - wait: 0.3
+  - type: "{amount_food}"
+  - wait: 0.3
+  - tap: [0.78, 0.86]      # tombol Kirim
+  - wait: 1.5
+  - tap: [0.50, 0.50]      # konfirmasi OK
+  - wait: 1.0

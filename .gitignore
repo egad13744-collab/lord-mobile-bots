@@ -1,0 +1,29 @@
+# runtime
+state/*.json
+state/*.jsonl
+state/*.tmp
+logs/
+*.log
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# artefak kalibrasi (screenshot bisa besar)
+logs/screen*.png
+# screenshot mentah dari user disimpan lokal, tidak masuk repo
+google_drive/
+# template PNG HASIL kalibrasi justru ikut di-commit (kecil & penting)
+!assets/templates/*.png
+
+# editor / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

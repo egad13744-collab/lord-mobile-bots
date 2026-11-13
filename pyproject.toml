@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=67"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lmbot"
+version = "1.0.0"
+description = "Bot Guild Bank Lord Mobile — MuMu Player + ADB, dijalankan dari terminal RDP Windows"
+requires-python = ">=3.9"
+dependencies = ["PyYAML>=6.0"]
+
+[project.optional-dependencies]
+vision = ["opencv-python>=4.8", "numpy>=1.24"]
+images = ["pillow>=10.0"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+lmbot = "lmbot.cli:main"
+
+[tool.setuptools]
+packages = ["lmbot"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
