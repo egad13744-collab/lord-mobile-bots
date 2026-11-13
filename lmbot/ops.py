@@ -209,6 +209,8 @@ class AdbOps(GameOps):
                     last = exc
                 except DeviceError as exc:
                     last = exc
+                except ValueError as exc:  # screenshot korup / bukan PNG
+                    last = exc
                 if attempt < attempts:
                     self._alert(
                         f"flow {name} percobaan {attempt} gagal",
@@ -217,7 +219,7 @@ class AdbOps(GameOps):
                     self._recover_screen()
                     time.sleep(1.0 * attempt)
             self._alert(f"flow {name} gagal total", str(last), level="error", flow=name)
-            if isinstance(last, DeviceError):
+            if isinstance(last, (DeviceError, ValueError)):
                 raise OpsError(f"perangkat error saat flow '{name}': {last}") from last
             raise OpsError(f"flow '{name}' gagal: {last}") from last
 

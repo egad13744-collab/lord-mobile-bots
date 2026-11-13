@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
-
 import pytest
 
 from lmbot.bot import Bot
@@ -375,10 +373,8 @@ def test_device_lock_serializes_calls(cfg):
     import threading
     import time as _time
 
-    from lmbot.device import MockDriver
-    from lmbot.ops import AdbOps, DEVICE_LOCK
+    from lmbot.ops import DEVICE_LOCK
 
-    ops = AdbOps(cfg, MockDriver())
     order = []
 
     def worker(tag):

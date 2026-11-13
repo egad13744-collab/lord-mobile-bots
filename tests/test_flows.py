@@ -138,7 +138,7 @@ def test_device_session_retries_then_succeeds():
     drv = Flaky()
     session = DeviceSession(drv, retries=3, backoff=0.0)
     shot = session.screenshot()
-    assert shot.data == b"MOCK"
+    assert shot.data.startswith(b"\x89PNG")  # MockDriver kini menghasilkan PNG valid
     assert session.reconnects == 2
     assert drv.connects == 2
 
@@ -154,3 +154,25 @@ def test_device_session_gives_up():
     with pytest.raises(DeviceError):
         session.screenshot()
     assert session.last_error == "mati"
+
+
+def test_valueless_back_step(tmp_path):
+    """`- back` (tanpa nilai) harus diterima; ini sempat mematahkan semua flow."""
+    (tmp_path / "x.yaml").write_text(
+        "name: x\nsteps:\n  - back\n  - {back: true}\n", encoding="utf-8")
+    flows = load_flows(tmp_path)
+    assert [s.kind for s in flows["x"].steps] == ["back", "back"]
+
+
+def test_all_bundled_flows_parse():
+    """Regresi: setiap YAML di config/flows harus bisa dimuat."""
+    cfg = load_config()
+    flows = load_flows(cfg.resolve_path("config/flows"))
+    assert len(flows) >= 45
+    assert all(f.steps for f in flows.values())
+
+
+def test_text_step_without_value_rejected(tmp_path):
+    (tmp_path / "y.yaml").write_text("name: y\nsteps:\n  - tapdance\n", encoding="utf-8")
+    with pytest.raises(FlowError):
+        load_flows(tmp_path)

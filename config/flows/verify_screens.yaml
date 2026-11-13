@@ -1,0 +1,13 @@
+# Flow diagnosis: cek bot mengenali layar saat ini.
+# Dipakai: python code.py cmd "!shield" --sender <nick>  (setelah enabled: true)
+# atau langsung: lmbot verify --adb  (uji semua template terhadap screenshot baru)
+name: verify_screens
+description: pastikan bot bisa mengenali tiap layar sebelum aksi lain
+enabled: false
+steps:
+  - assert: main_hud          # harus di kota utama
+  - screenshot: logs/screen_check1.png
+  - tap: [0.5563, 0.9305]     # ikon hadiah
+  - wait: 1.2
+  - screenshot: logs/screen_check2.png
+  - back

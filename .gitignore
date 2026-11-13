@@ -17,8 +17,10 @@ dist/
 
 # artefak kalibrasi (screenshot bisa besar)
 logs/screen*.png
-assets/templates/*.png
-!assets/templates/.gitkeep
+# screenshot mentah dari user disimpan lokal, tidak masuk repo
+google_drive/
+# template PNG HASIL kalibrasi justru ikut di-commit (kecil & penting)
+!assets/templates/*.png
 
 # editor / OS
 .vscode/

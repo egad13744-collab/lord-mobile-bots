@@ -198,9 +198,21 @@ class MockDriver(BaseDriver):
         self.actions.append(("connect",))
 
     def screenshot(self) -> Screen:
+        """PNG abu-abu polos yang valid — cukup untuk menguji alur & matcher."""
         self._tick += 1
         self.actions.append(("screenshot", self._tick))
-        return Screen(self.width, self.height, b"MOCK", fmt="mock")
+        if not hasattr(self, "_png"):
+            self._png = self._blank_png()
+        return Screen(self.width, self.height, self._png, fmt="png")
+
+    def _blank_png(self) -> bytes:
+        try:
+            from .imaging import Image as _Img, encode_png
+
+            w, h = 64, 36  # kecil: cukup untuk jadi gambar valid
+            return encode_png(_Img(w, h, 1, bytes([128] * (w * h))))
+        except Exception:  # pragma: no cover
+            return b"MOCK"
 
     def tap(self, x: int, y: int) -> None:
         self.actions.append(("tap", x, y))

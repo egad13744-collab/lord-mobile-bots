@@ -23,20 +23,37 @@ except Exception:  # pragma: no cover
 
 # Template yang dipakai bot; urutan ini juga dipakai `lmbot template list`.
 EXPECTED_TEMPLATES: Dict[str, str] = {
-    "main_map": "peta utama (untuk memastikan game tidak di menu lain)",
-    "guild_map": "peta klan / castle bank",
-    "guild_menu": "menu klan (tombol Bank, Member, dst.)",
-    "bank_panel": "panel bank klan terbuka (judul/tab bank)",
-    "bank_food_tab": "tab/kategori Food di panel bank",
-    "bank_stone_tab": "tab Stone di panel bank",
-    "bank_wood_tab": "tab Wood di panel bank",
-    "bank_ore_tab": "tab Ore di panel bank",
-    "bank_gold_tab": "tab Gold di panel bank",
+    # -- layar utama / HUD --
+    "main_hud": "HUD bawah-kanan kota utama (penanda sedang di peta)",
+    "main_profile": "bar profil kiri-atas (VIP/resource)",
+    "gift_button": "ikon hadiah di bottom bar",
+    "mail_button": "ikon surat/mail di bottom bar (tempat klaim RSS)",
+    "report_button": "ikon laporan di bottom bar",
+    "settings_button": "ikon pengaturan di bottom bar",
+    "bag_button": "ikon tas/inventory di bottom bar",
+    "barak_button": "ikon barak di bottom bar",
+    # -- panel klan --
+    "guild_tabs": "4 tab panel Klan (Dewan Diplomasi/Anggota/Lamaran/Hadiah)",
+    "hadiah_klan_tab": "tab Hadiah Klan",
+    "buka_button": "tombol Buka pada hadiah klan",
+    # -- misi --
+    "misi_tabs": "tab Misi (Harian/Wilayah/Admin/Klan/VIP)",
+    "btn_selesaikan": "tombol Selesaikan Otomatis",
+    "peti_vip": "peti hadiah VIP",
+    # -- barak --
+    "barak_actions": "tombol Runtuhkan + Tingkatkan di barak",
+    # -- panel bank klan (BELUM ADA di aset) --
+    "bank_panel": "panel Bank klan terbuka (judul/tab bank)",
+    "bank_tab": "tab kategori RSS di panel bank",
     "search_member": "kolom pencarian member",
     "member_row": "baris hasil pencarian member",
-    "send_button": "tombol Kirim/Transfer",
+    "send_button": "tombol Kirim/Transfer di panel bank",
+    # -- umum --
+    "close_button": "tombol X merah penutup panel",
     "popup_ok": "tombol OK pada dialog konfirmasi",
     "chat_panel": "panel chat in-game terbuka",
+    "guild_map": "peta klan / castle bank",
+    "guild_menu": "menu klan (tombol Bank, Member, dst.)",
 }
 
 # Rentang skor yang dianggap wajar saat verifikasi template.

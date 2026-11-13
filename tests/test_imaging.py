@@ -80,8 +80,8 @@ def test_make_template_and_verify(screen, tmp_path):
     assert found["center_fraction"][0] == pytest.approx(130 / 320, abs=0.01)
 
     status = list_templates(tdir)
-    assert status["send_button"] and not status["main_map"]
-    assert "main_map" in missing_templates(tdir)
+    assert status["send_button"] and not status["bank_panel"]
+    assert "bank_panel" in missing_templates(tdir)
 
 
 def test_make_template_scaled(screen, tmp_path):

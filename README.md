@@ -189,6 +189,9 @@ python code.py verify --screen shot.png          # skor + posisi tap yang benar
 python tools/crop.py shot.png --box 0.7,0.8,0.12,0.08 --out logs/kirim.png --scale 2
 ```
 
+Hasil pemeriksaan aset pertama (9 screenshot 1600×720 → 16 template, semua
+skor 1.000): **[docs/ASSET-REPORT.md](docs/ASSET-REPORT.md)**.
+
 Detail (layar apa saja yang perlu dikirim, ukuran template ideal, arti skor):
 **[docs/ASSETS.md](docs/ASSETS.md)**. Panduan koordinat manual:
 **[docs/CALIBRATION.md](docs/CALIBRATION.md)**.
@@ -230,7 +233,8 @@ config/settings.yaml     konfigurasi utama
 config/flows/*.yaml      koordinat alur UI (kalibrasi di sini)
 scripts/                 setup-windows.ps1, start-bot.ps1/.bat
 docs/                    SETUP-WINDOWS, CALIBRATION, OCR
-tests/                   79 test tanpa emulator (pytest)
+assets/templates/        16 template terukur dari screenshot asli (1600x720)
+tests/                   82 test tanpa emulator (pytest)
 .github/workflows/       CI (matrix Python × OS, plus tanpa OpenCV)
 ```
 

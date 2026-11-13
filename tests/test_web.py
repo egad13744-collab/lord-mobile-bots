@@ -7,7 +7,6 @@ import urllib.request
 import pytest
 
 from lmbot.bot import Bot
-from lmbot.config import load_config
 from lmbot.ops import MockOps
 
 

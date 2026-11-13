@@ -46,10 +46,21 @@ class Flow:
     enabled: bool = True
 
 
-def _parse_step(raw: Dict[str, Any]) -> Step:
+# Langkah tanpa nilai: ditulis sebagai string ("- back") atau {back: true}.
+VALUELESS_STEPS = {"back"}
+
+
+def _parse_step(raw: Any) -> Step:
+    if isinstance(raw, str):
+        name = raw.strip().lower()
+        if name in VALUELESS_STEPS:
+            return Step(name, None)
+        raise FlowError(f"langkah teks tidak dikenal: {raw!r}")
     if not isinstance(raw, dict) or len(raw) != 1:
         raise FlowError(f"langkah tidak valid: {raw!r}")
     (kind, value), = raw.items()
+    if kind in VALUELESS_STEPS:
+        return Step(kind, value)
     if kind not in {
         "tap", "tap_text", "wait", "swipe", "assert", "type", "back",
         "key", "screenshot", "if_template", "swipe_until", "wait_stable",
