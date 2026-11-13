@@ -1,0 +1,9 @@
+# Aksi: cek shield bank
+# enabled=false karena koordinat/urutan tombol bergantung pada UI akun kamu.
+# Kalibrasi sekali lewat `lmbot record` lalu isi fraksinya (docs/CALIBRATION.md).
+name: shield
+description: cek shield bank
+enabled: false
+steps:
+  - tap: [0.50, 0.50]
+  - wait: 1.0

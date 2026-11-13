@@ -1,0 +1,9 @@
+# Aksi: pindah bank ke klan lain
+# enabled=false karena koordinat/urutan tombol bergantung pada UI akun kamu.
+# Kalibrasi sekali lewat `lmbot record` lalu isi fraksinya (docs/CALIBRATION.md).
+name: guild
+description: pindah bank ke klan lain
+enabled: false
+steps:
+  - tap: [0.50, 0.50]
+  - wait: 1.0

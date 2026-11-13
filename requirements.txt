@@ -1,0 +1,7 @@
+# inti (wajib)
+PyYAML>=6.0
+# opsional tapi sangat disarankan: pencocokan template lebih cepat & akurat
+opencv-python>=4.8
+numpy>=1.24
+# pengembangan
+pytest>=7.0
