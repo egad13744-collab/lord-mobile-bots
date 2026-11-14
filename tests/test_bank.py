@@ -462,7 +462,7 @@ def test_version_command_shows_author(bot):
     reply = bot.handle_line("!version", "arken_ega")
     assert reply.ok
     assert "Egandika" in reply.message
-    assert "1.0.0" in reply.message
+    assert "1.1.0" in reply.message
 
 
 def test_about_module_is_single_source():

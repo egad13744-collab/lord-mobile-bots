@@ -530,6 +530,6 @@ Rank: **R1** member · **R4** officer · **R5** leader · **R6** owner (dari con
 
 ---
 
-**LMBot v1.0.0 — Dibuat oleh Egandika**
+**LMBot v1.1.0 — Dibuat oleh Egandika**
 Lisensi MIT · Kendala lain? buka `docs\SETUP-WINDOWS.md` lalu
 `docs\ASSET-REPORT.md`.

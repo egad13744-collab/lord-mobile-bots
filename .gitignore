@@ -2,7 +2,15 @@
 state/*.json
 state/*.jsonl
 state/*.tmp
+state/*/*.json
+state/*/*.jsonl
+state/*/*.tmp
+state/backups/
 logs/
+assets/ocr/*.png
+assets/ocr/preview/
+config/*.yaml.bak
+config/*.yaml.tmp
 *.log
 
 # python

@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from . import ledger
 from .config import Config
 from .roles import Roster
 from .utils import normalize_nick
@@ -32,9 +33,27 @@ class TxRecord:
     note: str = ""
     actor: str = ""
     balance_after: Optional[Dict[str, int]] = None
+    balance_before: Optional[Dict[str, int]] = None
+    id: int = 0
+    prev_hash: str = ""
+    hash: str = ""
+
+    def core(self) -> dict:
+        """Isi yang ikut di-hash (tanpa id/prev_hash/hash/waktu string)."""
+        return {
+            "ts": round(float(self.ts), 3),
+            "kind": self.kind,
+            "nick": self.nick,
+            "rss": self.rss,
+            "note": self.note,
+            "actor": self.actor,
+            "balance_before": self.balance_before,
+            "balance_after": self.balance_after,
+        }
 
     def to_dict(self) -> dict:
         return {
+            "id": self.id,
             "ts": self.ts,
             "time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.ts)),
             "kind": self.kind,
@@ -42,7 +61,10 @@ class TxRecord:
             "rss": self.rss,
             "note": self.note,
             "actor": self.actor,
+            "balance_before": self.balance_before,
             "balance_after": self.balance_after,
+            "prev_hash": self.prev_hash,
+            "hash": self.hash,
         }
 
 
@@ -132,11 +154,13 @@ class BankStore:
             return self.balance(nick)
         with self._lock:
             bal = self._bucket(nick)
+            before = dict(bal)
             for k, v in rss.items():
                 if v < 0:
                     raise ValueError("rss negatif")
                 bal[k] = int(bal.get(k, 0)) + int(v)
-            self._audit(TxRecord(time.time(), "credit", nick, dict(rss), note, actor, dict(bal)))
+            self._audit(TxRecord(time.time(), "credit", nick, dict(rss), note, actor,
+                                 dict(bal), before))
             if self.cfg.get("bank.save_every_command", True):
                 self.save()
             return dict(bal)
@@ -159,9 +183,11 @@ class BankStore:
                     raise InsufficientFunds(
                         f"saldo {k} {nick} kurang {short:,} (punya {bal.get(k, 0):,})"
                     )
+            before = dict(bal)
             for k, v in rss.items():
                 bal[k] = int(bal.get(k, 0)) - int(v)
-            self._audit(TxRecord(time.time(), "debit", nick, dict(rss), note, actor, dict(bal)))
+            self._audit(TxRecord(time.time(), "debit", nick, dict(rss), note, actor,
+                                 dict(bal), before))
             if self.cfg.get("bank.save_every_command", True):
                 self.save()
             return dict(bal)
@@ -174,13 +200,25 @@ class BankStore:
             before = self.balance(key)
             self.balances[key] = {k: int(rss.get(k, 0)) for k in RSS_KEYS}
             delta = {k: self.balances[key][k] - before.get(k, 0) for k in RSS_KEYS}
-            self._audit(TxRecord(time.time(), "set", nick, delta, "set manual", actor, dict(self.balances[key])))
+            self._audit(TxRecord(time.time(), "set", nick, delta, "set manual", actor,
+                                 dict(self.balances[key]), before))
             self.save()
             return dict(self.balances[key])
 
     def _audit(self, rec: TxRecord) -> None:
+        """Tulis entri audit dengan hash chain (deteksi manipulasi manual)."""
         try:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
+            prev = ledger.last_hash(self.log_path)
+            rec.id = ledger.next_id(self.log_path)
+            rec.prev_hash = prev
+            # hash dihitung dari versi yang dipakai `verify_chain`
+            payload = {
+                "id": rec.id, "ts": rec.ts, "kind": rec.kind, "nick": rec.nick, "rss": rec.rss,
+                "note": rec.note, "actor": rec.actor,
+                "balance_before": rec.balance_before, "balance_after": rec.balance_after,
+            }
+            rec.hash = ledger.compute_hash(payload, prev)
             with self.log_path.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(rec.to_dict(), ensure_ascii=False) + "\n")
         except OSError:
@@ -224,6 +262,85 @@ class BankStore:
             "frozen_until": self.frozen_until,
             "transactions": self.count_transactions(),
         }
+
+    # ---------------------------------------------------------------- #
+    # integritas & undo
+    # ---------------------------------------------------------------- #
+    def verify_audit(self):
+        """(utuh, indeks_rusak, jumlah_entri)."""
+        with self._lock:
+            return ledger.verify_chain(self.log_path)
+
+    def backup(self, keep: int = 7):
+        """Salin bank.json + audit ke state/backups/ (rotasi `keep`)."""
+        dest = self.path.parent / "backups"
+        out = []
+        with self._lock:
+            for src in (self.path, self.log_path):
+                res = ledger.backup_file(src, dest, keep=keep)
+                if res:
+                    out.append(res)
+        return out
+
+    def undo_last(self, actor: str = "", kinds=("credit", "debit")):
+        """Batalkan transaksi terakhir; kembalikan (entri, saldo_baru) atau (None, None).
+
+        Pembatalan ditulis sebagai entri baru (`kind: undo`) — audit tetap
+        append-only, tidak ada baris yang dihapus.
+        """
+        with self._lock:
+            # Verifikasi + cari kandidat + ubah saldo atomik terhadap mutasi lain.
+            if not self.verify_audit()[0]:
+                return None, None
+            entry = ledger.last_mutable_entry(self.log_path, kinds)
+            if not entry:
+                return None, None
+            # Undo ledger-only adjustments. A transfer/RSS action has already
+            # affected the game and cannot safely be reversed by editing balances.
+            note = str(entry.get("note") or "").lower()
+            if any(marker in note for marker in ("transfer", "donate", "adminrss", "rss", "refund", "setbal")):
+                return None, None
+            nick = str(entry.get("nick") or "")
+            before = entry.get("balance_before") or {}
+            if not nick or not isinstance(before, dict):
+                return None, None
+            key = normalize_nick(nick)
+            current = self.balance(key)
+            self.balances[key] = {k: int(before.get(k, 0) or 0) for k in RSS_KEYS}
+            delta = {k: self.balances[key][k] - current.get(k, 0) for k in RSS_KEYS}
+            self._audit(TxRecord(time.time(), "undo", nick, delta,
+                                 f"undo #{entry.get('id')} ({entry.get('kind')})",
+                                 actor, dict(self.balances[key]), current))
+            self.save()
+            return entry, dict(self.balances[key])
+
+    # ---------------------------------------------------------------- #
+    # kuota harian
+    # ---------------------------------------------------------------- #
+    def quota_used(self, nick: str, key: str, day: Optional[str] = None) -> int:
+        """Jumlah RSS yang sudah dikirim hari ini (dari audit log)."""
+        day = day or time.strftime("%Y-%m-%d")
+        nkey = normalize_nick(nick)
+        total = 0
+        with self._lock:
+            entries = ledger.read_entries(self.log_path)
+        for rec in entries:
+            if "__corrupt__" in rec:
+                continue
+            ts = float(rec.get("ts") or 0)
+            if time.strftime("%Y-%m-%d", time.localtime(ts)) != day:
+                continue
+            if normalize_nick(str(rec.get("nick") or "")) != nkey:
+                continue
+            kind = str(rec.get("kind") or "")
+            note = str(rec.get("note") or "").lower()
+            amount = int((rec.get("rss") or {}).get(key, 0) or 0)
+            send_markers = ("transfer", "donate", "adminrss", "rss")
+            if kind == "debit" and any(marker in note for marker in send_markers):
+                total += amount
+            elif kind == "credit" and "refund" in note:
+                total = max(0, total - amount)
+        return total
 
     def count_transactions(self) -> int:
         if not self.log_path.exists():

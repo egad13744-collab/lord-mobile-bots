@@ -6,11 +6,8 @@ lalu ketik perintah langsung, atau kirim lewat webhook dari HP.
 """
 from __future__ import annotations
 
-import json
-import queue
-import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Iterable, List
 
@@ -56,70 +53,15 @@ def tail_source(path: str | Path, poll: float = 0.5) -> Iterable[tuple[str, str]
 # --------------------------------------------------------------------------- #
 # HTTP webhook
 # --------------------------------------------------------------------------- #
-class _Handler(BaseHTTPRequestHandler):
-    bot = None  # diisi saat start
-    token = ""
-    inbox: "queue.Queue[tuple[str, str]]" = queue.Queue()
-
-    def log_message(self, fmt, *args):  # senyap
-        pass
-
-    def _auth(self) -> bool:
-        if not self.token:
-            return True
-        hdr = self.headers.get("X-Bot-Token", "")
-        return hdr == self.token
-
-    def do_GET(self):  # health
-        from .about import AUTHOR, VERSION
-
-        body = json.dumps({
-            "ok": True,
-            "uptime": self.bot.uptime() if self.bot else "",
-            "version": VERSION,
-            "author": AUTHOR,
-        }).encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_POST(self):
-        if not self._auth():
-            self.send_response(401)
-            self.end_headers()
-            return
-        length = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(length) if length else b"{}"
-        try:
-            payload = json.loads(raw.decode("utf-8") or "{}")
-        except json.JSONDecodeError:
-            payload = {}
-        text = str(payload.get("text") or payload.get("message") or "").strip()
-        sender = str(payload.get("sender") or "").strip()
-        if not text:
-            self.send_response(400)
-            self.end_headers()
-            return
-        reply = self.bot.handle_line(text, sender or None) if self.bot else None
-        body = json.dumps(
-            {"ok": bool(reply and reply.ok), "reply": reply.message if reply else ""},
-            ensure_ascii=False,
-        ).encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-
 def start_http(bot, host: str = "0.0.0.0", port: int = 8080, token: str = "") -> ThreadingHTTPServer:
-    handler = type("_BotHandler", (_Handler,), {"bot": bot, "token": token})
-    srv = ThreadingHTTPServer((host, port), handler)
-    t = threading.Thread(target=srv.serve_forever, name="lmbot-http", daemon=True)
-    t.start()
-    return srv
+    """Webhook lama memakai lapisan dashboard yang hardened.
+
+    Endpoint yang tersedia: POST / (perintah), POST /api/confirm (aksi berisiko),
+    GET /api/health, GET /api/status, dan GET /metrics. Auth/rate-limit/audit
+    tidak diduplikasi agar dua server tidak memiliki kebijakan yang berbeda.
+    """
+    from .web import start_dashboard
+    return start_dashboard(bot, host=host, port=port, token=token)
 
 
 # --------------------------------------------------------------------------- #

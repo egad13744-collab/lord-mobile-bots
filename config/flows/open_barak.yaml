@@ -3,7 +3,8 @@ name: open_barak
 description: buka barak dan lihat tombol aksi
 enabled: true
 steps:
-  - assert: main_hud
-  - tap: [0.9044, 0.9403]     # barak_button
+  - assert: main_profile     # main_hud lama hanya cocok pada satu screenshot kota
+  - assert: barak_button
+  - tap: [0.9044, 0.9403]     # pusat barak_button, terukur dari screenshot 1600x720
   - wait: 1.5
   - assert: {template: barak_actions, timeout: 8}

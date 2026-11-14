@@ -33,10 +33,17 @@ def warn_insecure_defaults(cfg, emit: Callable[[str], None]) -> List[str]:
     if webhook and webhook.startswith("http://"):
         found.append("alerts.webhook_url memakai http:// (tidak terenkripsi). Pakai https://.")
 
-    if cfg.get("web.enabled") and not str(cfg.get("web.token") or "").strip():
+    web_roles = cfg.get("web.roles") or {}
+    legacy_token = str(cfg.get("web.token") or "").strip()
+    role_tokens = [str(v) for v in web_roles.values() if str(v).strip()] if isinstance(web_roles, dict) else []
+    if cfg.get("web.enabled") and not legacy_token and not role_tokens:
         found.append(
-            "web.enabled = true tanpa web.token: dashboard bisa dibuka siapa pun di LAN."
+            "web.enabled tanpa token: endpoint hanya menerima loopback; set web.roles untuk akses LAN."
         )
+    for value in ([legacy_token] if legacy_token else []) + role_tokens:
+        if len(value) < 24:
+            found.append("token web lebih pendek dari 24 karakter; ganti dengan rahasia acak yang panjang.")
+            break
 
     limit = int(cfg.get("safety.max_rss_per_transfer", 0) or 0)
     if limit <= 0 or limit > 5_000_000_000:

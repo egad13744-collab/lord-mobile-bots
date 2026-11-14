@@ -450,4 +450,4 @@ peringatan `logs\alerts.jsonl`.
 
 ---
 
-**LMBot v1.0.0 — Dibuat oleh Egandika**
+**LMBot v1.1.0 — Dibuat oleh Egandika**

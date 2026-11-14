@@ -45,7 +45,7 @@ class C:
 
 
 def build_bot(args) -> Bot:
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, profile=getattr(args, "instance", None))
     if args.dry_run:
         cfg.data["bot"]["dry_run"] = True
     logger = setup_logging(cfg, verbose=args.verbose)
@@ -87,7 +87,17 @@ def build_bot(args) -> Bot:
 # Subcommand: doctor
 # --------------------------------------------------------------------------- #
 def cmd_doctor(args) -> int:
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, profile=getattr(args, "instance", None))
+    if getattr(args, "fix", False):
+        from .guard import heal_config
+        actions = heal_config(cfg)
+        if any(action.startswith("set ") or action.startswith("batasi ") for action in actions):
+            saved = cfg.save(backup=True)
+            actions.append(f"simpan konfigurasi {saved} (backup .bak)")
+        for action in actions:
+            print("🛠️", action)
+        if not actions:
+            print("✔ Tidak ada perbaikan otomatis yang diperlukan.")
     print("🔎 Pemeriksaan lingkungan\n")
     checks = []
 
@@ -124,6 +134,15 @@ def cmd_doctor(args) -> int:
     tdir = cfg.resolve_path(cfg.get("templates.dir", "assets/templates"))
     templates = sorted(p.stem for p in Path(tdir).glob("*.png")) if Path(tdir).exists() else []
     checks.append(("template PNG", True, f"{len(templates)} file" if templates else "belum ada (opsional)"))
+
+    try:
+        from .ocr import DigitOCR
+        ocr = DigitOCR(cfg.resolve_path(cfg.get("ocr.dir", "assets/ocr")))
+        checks.append(("OCR digit", True,
+                       f"{len(ocr.templates)}/10 template" +
+                       ("" if ocr.ready else f"; belum dilatih (opsional, kurang {','.join(ocr.missing_digits())})")))
+    except Exception as exc:
+        checks.append(("OCR digit", False, str(exc)))
 
     try:
         from .vision import HAS_CV
@@ -167,6 +186,7 @@ def _repl(bot: Bot) -> None:
             st = bot.bank.stats()
             print(json.dumps(st, indent=2, ensure_ascii=False))
             print(bot.summary())
+            print(bot.metrics_summary())
             continue
         reply = bot.handle_line(stripped)
         if reply.message:
@@ -189,6 +209,17 @@ def cmd_serve(args) -> int:
 
     source = args.source or "terminal"
     srv = None
+    dash = None
+    bot.start_workers()
+    watchdog = None
+    if bot.cfg.get("watchdog.enabled", True) and hasattr(bot.ops, "driver"):
+        from .guard import Watchdog
+        watchdog = Watchdog(
+            bot.ops.driver,
+            interval=float(bot.cfg.get("watchdog.interval", 30) or 30),
+            fail_threshold=int(bot.cfg.get("watchdog.fail_threshold", 3) or 3),
+            alerts=getattr(bot.ops, "alerts", None), logger=bot.log.info,
+        ).start()
     web_port = args.web_port or (int(bot.cfg.get("web.port", 8081)) if bot.cfg.get("web.enabled") else 0)
     if web_port:
         from .web import start_dashboard
@@ -205,8 +236,17 @@ def cmd_serve(args) -> int:
         print(f"webhook: http://{args.http_host}:{srv.server_address[1]}/  (POST {{\"text\":\"!bal\"}})")
     if source == "http":
         # mode server murni: tetap tampilkan REPL lokal
-        _repl(bot)
-        return 0
+        try:
+            _repl(bot)
+            return 0
+        finally:
+            if watchdog:
+                watchdog.stop()
+            bot.stop_workers()
+            if srv:
+                srv.shutdown()
+            if dash:
+                dash.shutdown()
     if source == "file":
         from .chat import tail_source
 
@@ -227,10 +267,27 @@ def cmd_serve(args) -> int:
         except (OpsError, KeyboardInterrupt) as exc:
             print(f"{C.err}{exc}{C.end}")
             return 1
+        finally:
+            if watchdog:
+                watchdog.stop()
+            bot.stop_workers()
+            if srv:
+                srv.shutdown()
+            if dash:
+                dash.shutdown()
         return 0
 
-    _repl(bot)
-    return 0
+    try:
+        _repl(bot)
+        return 0
+    finally:
+        if watchdog:
+            watchdog.stop()
+        bot.stop_workers()
+        if srv:
+            srv.shutdown()
+        if dash:
+            dash.shutdown()
 
 
 # --------------------------------------------------------------------------- #
@@ -280,7 +337,7 @@ def cmd_demo(args) -> int:
     from .bot import Bot
     from .ops import MockOps
 
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, profile=getattr(args, "instance", None))
     cfg.data["device"]["driver"] = "mock"
     cfg.data["bot"]["reply_confirm"] = False
     cfg.data["bot"]["log_file"] = "logs/demo.log"
@@ -324,7 +381,7 @@ def cmd_bank(args) -> int:
     from .state import BankStore
     from .utils import human, parse_amount
 
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, profile=getattr(args, "instance", None))
     bank = BankStore(cfg)
     act = args.bank_action
 
@@ -368,7 +425,7 @@ def cmd_bank(args) -> int:
 # Subcommand: record (bantu kalibrasi koordinat)
 # --------------------------------------------------------------------------- #
 def cmd_record(args) -> int:
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, profile=getattr(args, "instance", None))
     if cfg.get("device.driver") == "mock":
         print("driver mock tidak bisa screenshot")
         return 1
@@ -397,8 +454,36 @@ def cmd_template(args) -> int:
         make_template,
     )
 
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, profile=getattr(args, "instance", None))
     tdir = cfg.resolve_path(cfg.get("templates.dir", "assets/templates"))
+
+    if args.template_action == "auto":
+        import yaml
+        manifest_path = cfg.resolve_path(args.manifest)
+        try:
+            manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError) as exc:
+            print(f"manifest tidak bisa dibaca: {exc}")
+            return 2
+        entries = manifest.get("templates", [])
+        if not isinstance(entries, list) or not entries:
+            print(f"manifest {manifest_path} kosong; tambahkan template bernama + box. Lihat config/template_boxes.yaml")
+            return 2
+        made = 0
+        for entry in entries:
+            if not isinstance(entry, dict) or not entry.get("name") or not entry.get("box"):
+                print(f"lewati entri manifest tidak valid: {entry!r}")
+                continue
+            try:
+                result = make_template(args.screen, str(entry["name"]), entry["box"], tdir,
+                                       gray=True, scale=args.scale, max_width=args.max_width,
+                                       preview=args.preview)
+                print(f"✔ {result.name}: {result.template_size[0]}x{result.template_size[1]} → {result.path}")
+                made += 1
+            except (ImageError, OSError, ValueError) as exc:
+                print(f"✘ {entry.get('name')}: {exc}")
+        print(f"\n{made}/{len(entries)} template dibuat. (Koordinat box tetap perlu dikalibrasi.)")
+        return 0 if made else 1
 
     if args.template_action == "list":
         status = list_templates(tdir)
@@ -438,12 +523,45 @@ def cmd_template(args) -> int:
 
 
 # --------------------------------------------------------------------------- #
+# Subcommand: OCR template trainer / reader
+# --------------------------------------------------------------------------- #
+def cmd_ocr(args) -> int:
+    from .ocr import DigitOCR, DigitOCRError, parse_number, train_digits
+    from .imaging import ImageError
+    cfg = load_config(args.config, profile=getattr(args, "instance", None))
+    out_dir = cfg.resolve_path(cfg.get("ocr.dir", "assets/ocr"))
+    if args.ocr_action == "train":
+        try:
+            saved = train_digits(args.screen, [float(v) for v in args.box.split(",")],
+                                 out_dir, digits=args.digits)
+        except Exception as exc:
+            print(f"gagal melatih OCR: {exc}")
+            return 1
+        print(f"✔ {len(saved)} template digit tersimpan di {out_dir}")
+        return 0
+    reader = DigitOCR(out_dir)
+    try:
+        result = reader.read_file(
+            args.screen,
+            [float(v) for v in args.box.split(",")] if args.box else None,
+            min_score=float(cfg.get("ocr.min_score", 0.72)),
+        )
+    except (DigitOCRError, ImageError, OSError, ValueError) as exc:
+        print(f"OCR: {exc}")
+        return 1
+    print(f"teks      : {result.text}")
+    print(f"confidence: {result.confidence:.1%}")
+    print(f"angka     : {parse_number(result.text)}")
+    return 0
+
+
+# --------------------------------------------------------------------------- #
 # Subcommand: verify (uji template terhadap screenshot tanpa emulator)
 # --------------------------------------------------------------------------- #
 def cmd_verify(args) -> int:
     from .imaging import verify_template
 
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, profile=getattr(args, "instance", None))
     tdir = cfg.resolve_path(cfg.get("templates.dir", "assets/templates"))
     screen = args.screen or (args.adb and _grab(cfg, args.out))
     if not screen:
@@ -490,7 +608,7 @@ def cmd_setup(args) -> int:
     """Tulis nick owner/whitelist & device ke config/settings.yaml."""
     import re
 
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, profile=getattr(args, "instance", None))
     path = cfg.path
     text = path.read_text(encoding="utf-8")
     nick = (args.nick or "").strip()
@@ -523,11 +641,11 @@ def cmd_setup(args) -> int:
 
     # device.serial & resolusi (opsional)
     if args.port:
-        text = re.sub(r"^(\s*serial:).*$", f"\g<1> 127.0.0.1:{args.port}", text, count=1, flags=re.M)
+        text = re.sub(r"^(\s*serial:).*$", rf"\g<1> 127.0.0.1:{args.port}", text, count=1, flags=re.M)
         changed.append(f"serial = 127.0.0.1:{args.port}")
     if args.width and args.height:
-        text = re.sub(r"^(\s*width:).*$", f"\g<1> {args.width}", text, count=1, flags=re.M)
-        text = re.sub(r"^(\s*height:).*$", f"\g<1> {args.height}", text, count=1, flags=re.M)
+        text = re.sub(r"^(\s*width:).*$", rf"\g<1> {args.width}", text, count=1, flags=re.M)
+        text = re.sub(r"^(\s*height:).*$", rf"\g<1> {args.height}", text, count=1, flags=re.M)
         changed.append(f"resolusi = {args.width}x{args.height}")
 
     path.write_text(text, encoding="utf-8")
@@ -554,7 +672,7 @@ def cmd_info(args) -> int:  # noqa: C901
     from .imaging import EXPECTED_TEMPLATES, list_templates
     from .config import load_config as _load
 
-    cfg = _load(args.config)
+    cfg = _load(args.config, profile=getattr(args, "instance", None))
     tdir = cfg.resolve_path(cfg.get("templates.dir", "assets/templates"))
     fdir = cfg.resolve_path(cfg.get("flows.dir", "config/flows"))
     from .flows import load_flows
@@ -589,10 +707,13 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--config", "-c", default=None, help="path settings.yaml")
     ap.add_argument("--verbose", "-v", action="store_true")
     ap.add_argument("--dry-run", action="store_true", help="simulasi tanpa menyentuh emulator")
+    ap.add_argument("--instance", default=None, help="nama profil emulator, mis. emu2 (device.profiles)")
     ap.add_argument("--version", action="version", version=f"lmbot {__version__}")
     sub = ap.add_subparsers(dest="command")
 
     p_serve = sub.add_parser("serve", help="jalankan bot (interaktif)")
+    p_serve.add_argument("--instance", dest="instance", default=argparse.SUPPRESS,
+                         help="profil emulator dari device.profiles (opsional)")
     p_serve.add_argument("--source", choices=["terminal", "file", "http", "chat"], default="terminal")
     p_serve.add_argument("--file", default=None, help="path file perintah (source=file)")
     p_serve.add_argument("--http-port", type=int, default=0, help="aktifkan webhook di port ini")
@@ -618,6 +739,7 @@ def main(argv: Optional[list] = None) -> int:
     p_info.set_defaults(func=cmd_info)
 
     p_doc = sub.add_parser("doctor", help="cek adb, emulator, flow, template")
+    p_doc.add_argument("--fix", action="store_true", help="buat folder yang hilang dan betulkan setting aman")
     p_doc.set_defaults(func=cmd_doctor)
 
     p_bank = sub.add_parser("bank", help="admin saldo & whitelist dari terminal")
@@ -655,6 +777,13 @@ def main(argv: Optional[list] = None) -> int:
     tsub = p_tpl.add_subparsers(dest="template_action", required=True)
     t_list = tsub.add_parser("list", help="cek template mana yang sudah ada")
     t_list.set_defaults(func=cmd_template)
+    t_auto = tsub.add_parser("auto", help="batch crop template dari screenshot + manifest box")
+    t_auto.add_argument("--screen", required=True, help="screenshot mentah fullscreen")
+    t_auto.add_argument("--manifest", default="config/template_boxes.yaml")
+    t_auto.add_argument("--scale", type=float, default=1.0)
+    t_auto.add_argument("--max-width", type=int, default=0)
+    t_auto.add_argument("--preview", action="store_true")
+    t_auto.set_defaults(func=cmd_template)
     t_add = tsub.add_parser("add", help="crop screenshot -> template PNG")
     t_add.add_argument("--screen", required=True, help="screenshot PNG fullscreen")
     t_add.add_argument("--name", required=True, help="nama template (lihat: template list)")
@@ -664,6 +793,18 @@ def main(argv: Optional[list] = None) -> int:
     t_add.add_argument("--color", action="store_true", help="simpan berwarna (default grayscale)")
     t_add.add_argument("--preview", action="store_true", help="simpan juga versi besar berwarna")
     t_add.set_defaults(func=cmd_template)
+
+    p_ocr = sub.add_parser("ocr", help="latih/baca digit secara offline")
+    osub = p_ocr.add_subparsers(dest="ocr_action", required=True)
+    o_train = osub.add_parser("train", help="crop baris 0-9 dari screenshot jadi template")
+    o_train.add_argument("--screen", required=True)
+    o_train.add_argument("--box", required=True, help="x,y,w,h fraksi atau piksel")
+    o_train.add_argument("--digits", default="0123456789", help="urutan karakter sample di screenshot")
+    o_train.set_defaults(func=cmd_ocr)
+    o_read = osub.add_parser("read", help="baca angka dari screenshot")
+    o_read.add_argument("--screen", required=True)
+    o_read.add_argument("--box", default=None)
+    o_read.set_defaults(func=cmd_ocr)
 
     p_ver = sub.add_parser("verify", help="uji template terhadap screenshot")
     p_ver.add_argument("--screen", default=None)

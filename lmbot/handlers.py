@@ -23,6 +23,7 @@ from .parser import (
     arg_state,
     rss_vector,
 )
+from .i18n import translator_for
 from .roles import RANK_LABEL
 from .state import CODE_TO_KEY, RSS_KEYS, BankStore, InsufficientFunds
 from .utils import ParseError, fmt_rss, human, normalize_nick
@@ -71,6 +72,9 @@ class Context:
     logger: Any = None
     now: float = field(default_factory=time.time)
     tap_pause: float = 0.0
+    queue: Any = None       # TaskQueue (opsional, diisi Bot)
+    schedule: Any = None    # Schedule (opsional, diisi Bot)
+    t: Any = None           # Translator i18n (opsional)
 
     def log(self, msg: str) -> None:
         if self.logger:
@@ -85,6 +89,7 @@ class Handlers:
         self.cfg = ctx.cfg
         self.bank = ctx.bank
         self.ops = ctx.ops
+        self.t = ctx.t or translator_for(ctx.cfg)
         self._map: Dict[str, Handler] = {}
         self._register()
 
@@ -199,6 +204,16 @@ class Handlers:
                 "rss": self.h_rss,
                 "donate": self.h_donate,
                 "adminrss": self.h_adminrss,
+                # OPERASIONAL (premium) --------------------------------
+                "queue": self.h_queue,
+                "jobs": self.h_jobs,
+                "cancel": self.h_cancel,
+                "retry": self.h_retry,
+                "cron": self.h_cron,
+                "quota": self.h_quota,
+                "audit": self.h_audit,
+                "undo": self.h_undo,
+                "backup": self.h_backup,
             }
         )
         for word in ("food", "stone", "wood", "ore", "gold", "grain", "rock", "timber", "iron"):
@@ -218,6 +233,31 @@ class Handlers:
                 f"saldo {self.ui_labels.get(key, key)} {nick} "
                 f"hanya {human(bal.get(key, 0))}, diminta {human(amount)}"
             )
+
+    def _quota_guard(self, nick: str, rss: Dict[str, int]) -> None:
+        """Tolak bila pengiriman melewati kuota harian (0 = tanpa batas)."""
+        per_type = int(self.cfg.get("safety.daily_limit_per_type", 0) or 0)
+        total_limit = int(self.cfg.get("safety.daily_limit_all_types", 0) or 0)
+        if per_type <= 0 and total_limit <= 0:
+            return
+        total_needed = sum(int(v) for v in rss.values() if v)
+        if total_limit > 0:
+            used_total = sum(self.bank.quota_used(nick, k) for k in RSS_KEYS)
+            if used_total + total_needed > total_limit:
+                left = max(0, total_limit - used_total)
+                raise ParseError(self.t("quota.exceeded", label="RSS", limit=human(total_limit))
+                                 + f" — sisa {human(left)}")
+        if per_type > 0:
+            for key, amount in rss.items():
+                if not amount:
+                    continue
+                used = self.bank.quota_used(nick, key)
+                if used + int(amount) > per_type:
+                    left = max(0, per_type - used)
+                    raise ParseError(
+                        self.t("quota.exceeded", label=self.ui_labels.get(key, key),
+                               limit=human(per_type)) + f" — sisa {human(left)}"
+                    )
 
     def _max_transfer_guard(self, rss: Dict[str, int]) -> None:
         limit = int(self.cfg.get("safety.max_rss_per_transfer", 3_000_000))
@@ -655,6 +695,7 @@ class Handlers:
                 f"(gunakan !shield untuk cek, atau tunggu)"
             )
         self._max_transfer_guard({key: amount})
+        self._quota_guard(sender_nick, {key: amount})
         self._require_funds(sender_nick, key, amount)
         # 1) kurangi saldo pengirim, 2) kirim di game, 3) refund bila gagal
         self.bank.debit(sender_nick, {key: amount}, note=f"transfer ke {target}", actor=cmd.sender)
@@ -686,6 +727,7 @@ class Handlers:
         if not amounts:
             return Result.fail("semua jumlah 0, tidak ada yang dikirim")
         self._max_transfer_guard(amounts)
+        self._quota_guard(nick, amounts)
         for key, amount in amounts.items():
             self._require_funds(nick, key, amount)
         # debit dulu (atomic di store), lalu kirim; refund bila ops gagal
@@ -732,6 +774,7 @@ class Handlers:
         if self.bank.is_frozen():
             return Result.fail(f"bank sedang dijeda {self.bank.freeze_remaining()} detik")
         self._max_transfer_guard({key: amount})
+        self._quota_guard(sender_nick, {key: amount})
         self._require_funds(sender_nick, key, amount)
         self.bank.debit(sender_nick, {key: amount}, note=f"donate ke {target}", actor=cmd.sender)
         try:
@@ -755,6 +798,179 @@ class Handlers:
     # ================================================================ #
     # INFO
     # ================================================================ #
+
+    # ================================================================ #
+    # OPERASIONAL (premium): antrian, cron, kuota, audit, undo, backup
+    # ================================================================ #
+    def _queue(self):
+        q = getattr(self.ctx, "queue", None)
+        if q is None:
+            raise OpsError("antrian nonaktif (queue.enabled: false di settings.yaml)")
+        return q
+
+    def _schedule(self):
+        sch = getattr(self.ctx, "schedule", None)
+        if sch is None:
+            raise OpsError("penjadwal nonaktif (schedule.enabled: false di settings.yaml)")
+        return sch
+
+    def h_queue(self, cmd: Cmd, ctx: Context) -> Result:
+        q = self._queue()
+        rows = q.list(status="queued", limit=10)
+        running = q.list(status="running", limit=3)
+        if not rows and not running:
+            return Result.success(self.t("queue.empty"), queue=q.stats())
+        lines = ["🧾 Antrian:"]
+        for job in running:
+            lines.append(f"• {job.describe()} (berjalan)")
+        for job in rows:
+            lines.append(f"• {job.describe()} — posisi {q.position(job.id)}")
+        st = q.stats()
+        lines.append(
+            f"total: {st['queued']} menunggu, {st['running']} jalan, "
+            f"{st['done']} selesai, {st['failed']} gagal"
+        )
+        return Result.success("\n".join(lines), queue=st)
+
+    def h_jobs(self, cmd: Cmd, ctx: Context) -> Result:
+        q = self._queue()
+        rows = q.list(limit=15)
+        if not rows:
+            return Result.success(self.t("queue.empty"), queue=q.stats())
+        lines = ["📋 Riwayat job:"]
+        for job in reversed(rows):
+            icon = {"done": "✅", "failed": "❌", "cancelled": "🚫",
+                    "running": "⏳", "queued": "•"}.get(job.status, "•")
+            detail = job.result.splitlines()[0] if job.result else job.error.splitlines()[0] if job.error else ""
+            lines.append(f"{icon} #{job.id} {job.text} — {job.sender} {detail}".rstrip())
+        return Result.success("\n".join(lines), queue=q.stats())
+
+    def h_cancel(self, cmd: Cmd, ctx: Context) -> Result:
+        q = self._queue()
+        try:
+            job_id = int(str(cmd.get("id")))
+        except (TypeError, ValueError):
+            return Result.fail("format: !cancel <id>, contoh !cancel 12")
+        if q.cancel(job_id):
+            return Result.success(f"🚫 Job #{job_id} dibatalkan", id=job_id)
+        return Result.fail(f"job #{job_id} tidak ditemukan atau sudah selesai")
+
+    def h_retry(self, cmd: Cmd, ctx: Context) -> Result:
+        q = self._queue()
+        try:
+            job_id = int(str(cmd.get("id")))
+        except (TypeError, ValueError):
+            return Result.fail("format: !retry <id>")
+        if q.retry(job_id):
+            return Result.success(f"🔁 Job #{job_id} dimasukkan kembali ke antrian", id=job_id)
+        return Result.fail(f"job #{job_id} bukan status gagal")
+
+    def h_cron(self, cmd: Cmd, ctx: Context) -> Result:
+        from .schedule import CronError, describe
+
+        sch = self._schedule()
+        action = str(cmd.get("action") or "list").lower()
+        if action == "list":
+            if not sch.jobs:
+                return Result.success("🗓️ Belum ada jadwal. Contoh: !cron add \"0 2 * * *\" !top food")
+            lines = ["🗓️ Jadwal:"]
+            for job in sch.jobs:
+                lines.append(
+                    f"• #{job.id} [{describe(job.expr)}] {job.text} "
+                    f"— {job.runs}x dijalankan{' (nonaktif)' if not job.enabled else ''}"
+                )
+            return Result.success("\n".join(lines))
+        if action == "add":
+            expr = str(cmd.get("expr") or "").strip()
+            text = str(cmd.get("text") or "").strip()
+            if not expr or not text:
+                return Result.fail('format: !cron add "0 2 * * *" !top food')
+            try:
+                job = sch.add(expr, text, cmd.sender)
+            except CronError as exc:
+                return Result.fail(f"cron tidak valid: {exc}")
+            return Result.success(
+                f"🗓️ Jadwal #{job.id} dibuat: {describe(expr)} → {text}", id=job.id
+            )
+        if action in ("del", "delete", "rm"):
+            try:
+                job_id = int(str(cmd.get("expr")))
+            except (TypeError, ValueError):
+                return Result.fail("format: !cron del <id>")
+            if sch.remove(job_id):
+                return Result.success(f"🗑️ Jadwal #{job_id} dihapus", id=job_id)
+            return Result.fail(f"jadwal #{job_id} tidak ditemukan")
+        return Result.fail("aksi tidak dikenal: pakai list | add | del")
+
+    def h_quota(self, cmd: Cmd, ctx: Context) -> Result:
+        nick = self._nick(cmd.sender)
+        per_type = int(self.cfg.get("safety.daily_limit_per_type", 0) or 0)
+        all_limit = int(self.cfg.get("safety.daily_limit_all_types", 0) or 0)
+        if per_type <= 0 and all_limit <= 0:
+            return Result.success("📈 Kuota harian tidak dibatasi (nilai 0 = tanpa batas)")
+        lines = [f"📈 Kuota harian {nick}:"]
+        used_by_type = {key: self.bank.quota_used(nick, key) for key in self.ui_labels}
+        if all_limit > 0:
+            used_total = sum(used_by_type.values())
+            lines.append(
+                f"• Total: {human(used_total)} / {human(all_limit)} "
+                f"— sisa {human(max(0, all_limit - used_total))}"
+            )
+        for key, label in self.ui_labels.items():
+            used = used_by_type[key]
+            if per_type > 0:
+                lines.append(f"• {label}: {human(used)} / {human(per_type)} — sisa {human(max(0, per_type - used))}")
+            else:
+                lines.append(f"• {label}: {human(used)} terkirim hari ini")
+        return Result.success("\n".join(lines))
+
+    def h_audit(self, cmd: Cmd, ctx: Context) -> Result:
+        action = str(cmd.get("action") or "verify").lower()
+        if action == "verify":
+            ok, bad_idx, count = self.bank.verify_audit()
+            if ok:
+                return Result.success(self.t("audit.ok", count=count), entries=count)
+            return Result.fail(self.t("audit.broken", idx=bad_idx))
+        if action == "log":
+            rows = self.bank.recent(10)
+            if not rows:
+                return Result.success("📄 Belum ada transaksi")
+            lines = ["📄 Transaksi terakhir:"]
+            for r in reversed(rows):
+                rss = ", ".join(f"{k}:{human(v)}" for k, v in (r.get("rss") or {}).items() if v)
+                lines.append(
+                    f"• #{r.get('id','?')} {r.get('time','')} {r.get('kind')} "
+                    f"{r.get('nick','')} {rss} {('(' + r['note'] + ')') if r.get('note') else ''}".rstrip()
+                )
+            return Result.success("\n".join(lines))
+        return Result.fail("aksi tidak dikenal: pakai verify | log")
+
+    def h_undo(self, cmd: Cmd, ctx: Context) -> Result:
+        intact, bad_idx, _count = self.bank.verify_audit()
+        if not intact:
+            return Result.fail(self.t("audit.broken", idx=bad_idx))
+        entry, new_bal = self.bank.undo_last(actor=cmd.sender)
+        if not entry:
+            return Result.fail(self.t("undo.none"))
+        detail = f"#{entry.get('id')} {entry.get('kind')} {entry.get('nick')}"
+        self._log_queue_action("undo", {"entry": entry.get("id")}, cmd.sender)
+        return Result.success(
+            self.t("undo.done", id=entry.get("id"), detail=detail)
+            + f"\nSaldo sekarang: {fmt_rss(new_bal or {}, self.ui_labels)}",
+            balance=new_bal,
+        )
+
+    def h_backup(self, cmd: Cmd, ctx: Context) -> Result:
+        keep = int(self.cfg.get("backup.keep", 7) or 7)
+        files = self.bank.backup(keep=keep)
+        if not files:
+            return Result.fail("tidak ada state untuk dibackup")
+        names = ", ".join(f.name for f in files)
+        return Result.success(f"💾 Backup dibuat ({keep} terakhir disimpan): {names}", files=len(files))
+
+    def _log_queue_action(self, action: str, params: Optional[dict], sender: str) -> None:
+        self.ctx.log(f"[action] {action} {params or ''} oleh {sender or '-'}")
+
     def h_help(self, cmd: Cmd, ctx: Context) -> Result:
         return Result.success(help_text(self.cfg, str(cmd.get("category") or "").strip() or None))
 
@@ -808,7 +1024,7 @@ def build_handlers(ctx: Context) -> Handlers:
 def help_text(cfg, category: Optional[str] = None) -> str:
     from .parser import iter_specs
 
-    order = ["GUILD", "SEARCH", "BALANCE", "RSS"]
+    order = ["GUILD", "SEARCH", "BALANCE", "RSS", "OPS"]
     cats = [category.upper()] if category else order
     parts = []
     for cat in cats:
@@ -821,5 +1037,7 @@ def help_text(cfg, category: Optional[str] = None) -> str:
             parts.append(f"!{s.pattern:<34} {s.description}{rank}")
     parts.append("")
     parts.append("RSS singkat: !food 100m, !stone 50m, !wood 50m, !ore 50m, !gold 50m")
+    if not category:
+        parts.append("Operasional: !queue !jobs !cron !quota !audit !undo !backup")
     parts.append("Keterangan: F=food, S=stone, W=wood, O=ore, G=gold (maks 5 komponen)")
     return "\n".join(parts)

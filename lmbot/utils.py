@@ -127,7 +127,7 @@ class RateLimiter:
 
 
 def jitter_point(x: int, y: int, spread: int = 4) -> tuple[int, int]:
-    """Geser titik sedikit agar tidak mencurigakan seperti macro kaku."""
+    """Tambahkan toleransi koordinat kecil; ini bukan simulasi perilaku manusia."""
     if spread <= 0:
         return x, y
     return x + random.randint(-spread, spread), y + random.randint(-spread, spread)
