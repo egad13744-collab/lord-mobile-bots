@@ -176,3 +176,25 @@ def test_text_step_without_value_rejected(tmp_path):
     (tmp_path / "y.yaml").write_text("name: y\nsteps:\n  - tapdance\n", encoding="utf-8")
     with pytest.raises(FlowError):
         load_flows(tmp_path)
+
+
+def test_adb_driver_uses_actual_screencap_dimensions():
+    """WM physical portrait size must not override the landscape PNG dimensions."""
+    from lmbot.device import AdbDriver
+    from lmbot.imaging import Image, encode_png
+
+    png = encode_png(Image(1600, 720, 1, bytes([0, 64, 128, 255]) * (1600 * 720 // 4)))
+
+    class FakeAdbDriver(AdbDriver):
+        def _run(self, args, binary=False, timeout=None):
+            if args == ["devices"]:
+                return "List of devices attached\n127.0.0.1:16384\tdevice\n"
+            if args == ["exec-out", "screencap", "-p"]:
+                return png
+            raise AssertionError(f"unexpected ADB command: {args}")
+
+    drv = FakeAdbDriver(serial="127.0.0.1:16384", width=1280, height=720)
+    drv.connect()
+    shot = drv.screenshot()
+    assert (shot.width, shot.height) == (1600, 720)
+    assert (drv.width, drv.height) == (1600, 720)

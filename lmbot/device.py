@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import struct
 import subprocess
 import time
 from dataclasses import dataclass
@@ -128,20 +129,23 @@ class AdbDriver(BaseDriver):
                     f"dan port-nya sesuai."
                 )
         self.connected = True
-        size = self._run(["shell", "wm", "size"])
-        for token in size.replace("\r", "").split():
-            if "x" in token and token[0].isdigit():
-                w, h = token.split("x")[:2]
-                self.width, self.height = int(w), int(h)
-                break
-        self._info(f"terhubung ke {self.serial} ({self.width}x{self.height})")
+        # `wm size` dapat melaporkan dimensi fisik portrait walau aplikasi sedang
+        # landscape. Gunakan dimensi PNG screencap aktual untuk crop dan tap.
+        shot = self.screenshot()
+        self._info(f"terhubung ke {self.serial} ({shot.width}x{shot.height})")
 
     # -- aksi -- #
     def screenshot(self) -> Screen:
         data = self._run(["exec-out", "screencap", "-p"], binary=True)
         if not data or len(data) < 100:
             raise DeviceError("screenshot kosong — emulator mungkin minimized atau sleep")
-        return Screen(self.width, self.height, data)
+        if data[:8] != b"\x89PNG\r\n\x1a\n" or data[12:16] != b"IHDR":
+            raise DeviceError("screenshot ADB bukan PNG valid; ukuran layar tidak dapat dibaca")
+        width, height = struct.unpack(">II", data[16:24])
+        if width <= 0 or height <= 0:
+            raise DeviceError("ukuran PNG screenshot tidak valid")
+        self.width, self.height = width, height
+        return Screen(width, height, data)
 
     def tap(self, x: int, y: int) -> None:
         x, y = jitter_point(x, y, self.jitter)
