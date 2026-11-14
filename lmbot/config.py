@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
@@ -22,6 +23,7 @@ DEFAULTS: Dict[str, Any] = {
         "auto_connect": True,
         "mumu_manager": "",
         "screenshot_timeout": 20,
+        "profiles": {},
     },
     "ui": {
         "chat_button": [0.06, 0.92],
@@ -36,6 +38,7 @@ DEFAULTS: Dict[str, Any] = {
     },
     "bot": {
         "name": "LMBot",
+        "profile": "default",
         "owner_nick": "arken_ega",
         "allowed_senders": ["arken_ega"],
         "guild_name": "GUILD",
@@ -50,6 +53,8 @@ DEFAULTS: Dict[str, Any] = {
     "safety": {
         "max_rss_per_transfer": 300_000_000,
         "max_balance_per_command": 100_000_000,
+        "daily_limit_per_type": 0,      # 0 = tanpa batas kuota harian
+        "daily_limit_all_types": 0,
         "cooldown_between_transfers": 2.0,
         "stop_if_not_in_guild_map": True,
         "whitelist_enforced": True,
@@ -81,8 +86,23 @@ DEFAULTS: Dict[str, Any] = {
         "min_level": "warn",
         "throttle_seconds": 30,
     },
+    "queue": {
+        "enabled": True,
+        "path": "state/queue.json",
+        "max_pending": 50,
+        "always": False,        # true = semua pengiriman lewat antrian
+    },
+    "schedule": {"enabled": True, "path": "state/schedule.json", "interval": 20.0},
+    "backup": {"enabled": True, "keep": 7, "every_commands": 50},
+    "watchdog": {"enabled": True, "interval": 30.0, "fail_threshold": 3},
+    "ocr": {"dir": "assets/ocr", "min_score": 0.72},
+    "commands": {"path": "config/commands.yaml"},
     "diagnostics": {"enabled": True},
-    "web": {"enabled": False, "host": "0.0.0.0", "port": 8081, "token": ""},
+    "web": {
+        "enabled": False, "host": "0.0.0.0", "port": 8081, "token": "",
+        "roles": {}, "identities": {}, "rate_limit_per_minute": 60,
+        "access_log": "logs/access.jsonl",
+    },
 }
 
 
@@ -122,6 +142,17 @@ class Config:
         p = Path(rel)
         return p if p.is_absolute() else (self.root / p)
 
+    def save(self, backup: bool = True) -> Path:
+        """Atomically persist settings; optionally preserve the original as .bak."""
+        import shutil
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if backup and self.path.exists():
+            shutil.copy2(self.path, self.path.with_suffix(self.path.suffix + ".bak"))
+        tmp = self.path.with_suffix(self.path.suffix + ".tmp")
+        tmp.write_text(yaml.safe_dump(self.data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+        os.replace(tmp, self.path)
+        return self.path
+
 
 def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
     out = copy.deepcopy(base)
@@ -133,7 +164,7 @@ def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any
     return out
 
 
-def load_config(path: str | os.PathLike | None = None) -> Config:
+def load_config(path: str | os.PathLike | None = None, profile: str | None = None) -> Config:
     p = Path(path) if path else DEFAULT_PATH
     raw: Dict[str, Any] = {}
     if p.exists():
@@ -146,6 +177,26 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
 
     env_serial = os.environ.get("LMBOT_SERIAL")
     data = _deep_merge(DEFAULTS, raw)
+
+    # Profil per-instance: `device.profiles.<nama>` menimpa `device.*`
+    profile = profile or os.environ.get("LMBOT_PROFILE") or data.get("bot", {}).get("profile") or ""
+    profiles = data.get("device", {}).get("profiles") or {}
+    if profile and not re.fullmatch(r"[A-Za-z0-9_-]{1,48}", str(profile)):
+        raise ConfigError("nama instance hanya boleh berisi huruf, angka, _ dan -")
+    if profile:
+        profile_device = profiles.get(profile) or {}
+        data["device"] = _deep_merge(
+            {k: v for k, v in data["device"].items() if k != "profiles"},
+            profile_device,
+        )
+        data["bot"]["profile"] = profile
+        data["device"]["profiles"] = profiles
+        # Pisahkan state per emulator agar saldo/transaksi tidak tercampur.
+        if profile != "default":
+            data["bank"]["path"] = f"state/{profile}/bank.json"
+            for section, key, fallback in (("queue", "path", f"state/{profile}/queue.json"),
+                                           ("schedule", "path", f"state/{profile}/schedule.json")):
+                data[section][key] = fallback
     if env_serial:
         data["device"]["serial"] = env_serial
 
@@ -166,6 +217,22 @@ def _validate(cfg: Config) -> None:
     bot = cfg.section("bot")
     if not bot.get("allowed_senders"):
         raise ConfigError("bot.allowed_senders minimal berisi satu nick")
+
+    profiles = cfg.get("device.profiles") or {}
+    if not isinstance(profiles, dict):
+        raise ConfigError("device.profiles harus berupa mapping nama -> pengaturan")
+    for name, settings in profiles.items():
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,48}", str(name)):
+            raise ConfigError(f"nama profil device tidak valid: {name!r}")
+        if not isinstance(settings, dict):
+            raise ConfigError(f"device.profiles.{name} harus berupa mapping")
+
+    for limit_name in ("safety.daily_limit_per_type", "safety.daily_limit_all_types"):
+        try:
+            if int(cfg.get(limit_name, 0) or 0) < 0:
+                raise ConfigError(f"{limit_name} tidak boleh negatif")
+        except (TypeError, ValueError) as exc:
+            raise ConfigError(f"{limit_name} harus bilangan bulat") from exc
 
     units = cfg.get("bank.rss_units", {})
     for code in ("F", "S", "W", "O", "G"):

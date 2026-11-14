@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lmbot"
-version = "1.0.0"
+version = "1.1.0"
 description = "Bot Guild Bank Lord Mobile — MuMu Player + ADB, dijalankan dari terminal RDP Windows"
 authors = [{name = "Egandika"}]
 requires-python = ">=3.9"

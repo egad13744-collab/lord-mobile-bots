@@ -28,6 +28,9 @@ def cfg(tmp_path):
     c.data["bot"]["log_file"] = str(tmp_path / "bot.log")
     c.data["bot"]["reply_confirm"] = False
     c.data["alerts"]["file"] = str(tmp_path / "alerts.jsonl")
+    c.data["queue"]["path"] = str(tmp_path / "queue.json")
+    c.data["schedule"]["path"] = str(tmp_path / "schedule.json")
+    c.data["web"]["access_log"] = str(tmp_path / "access.jsonl")
     c.data["safety"]["max_rss_per_transfer"] = 300_000_000
     return c
 
@@ -58,6 +61,7 @@ def bot(cfg, bank, ops):
 @pytest.fixture(autouse=True)
 def _clean_runtime_logs():
     """State & log runtime tidak boleh bocor antar test."""
-    for name in ("bank.json", "demo.json", "transactions.jsonl"):
+    for name in ("bank.json", "demo.json", "transactions.jsonl", "queue.json",
+                 "schedule.json"):
         (ROOT / "state" / name).unlink(missing_ok=True)
     yield

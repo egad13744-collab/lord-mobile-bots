@@ -1,4 +1,27 @@
-# Membaca chat game (opsional)
+# OCR angka dan pembacaan chat
+
+## Yang tersedia di LMBot 1.1.0
+
+`lmbot/ocr.py` menyediakan OCR **digit saja** secara offline, memakai template
+lokal. Latih dari screenshot mentah dengan baris `0123456789` yang bentuk
+font/ukurannya serupa:
+
+```powershell
+python code.py ocr train --screen "logs/screen.png" --box "0.20,0.35,0.60,0.12"
+python code.py ocr read --screen "logs/screen.png" --box "0.30,0.40,0.25,0.08"
+```
+
+Kotak dapat berupa fraksi layar atau piksel. Hasil OCR belum terhubung ke
+rekonsiliasi otomatis `!adminbag`/`!sync`, dan bukan OCR teks/nick. Verifikasi
+confidence dan hasil pada screenshot sendiri; informasi detail ada di
+[PREMIUM.md](PREMIUM.md).
+
+## Membaca chat game (belum terintegrasi)
+
+Mode `--source chat` membuat bot **mendengar chat in-game** seperti bot asli:
+menunggu `[R4] !food 10m` dari member, lalu membalas di chat. Ini butuh OCR
+teks di layar. **OCR digit di atas bukan OCR chat**, sehingga sumber chat
+in-game belum aktif hanya dengan melatih template digit.
 
 Mode `--source chat` membuat bot **mendengar chat in-game** seperti bot asli:
 menunggu `[R4] !food 10m` dari member, lalu membalas di chat. Ini butuh OCR

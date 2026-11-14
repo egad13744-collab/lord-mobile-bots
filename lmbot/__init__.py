@@ -7,6 +7,6 @@ layar (tap/swipe via ADB). Semua aksi dijalankan lewat MuMu Player yang
 terpasang di Windows dan diakses dari terminal (RDP/SSH/PowerShell).
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "Egandika"
 __all__ = ["__version__", "__author__"]

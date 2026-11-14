@@ -52,6 +52,8 @@ Setelah bot hidup, di prompt `lmbot>`:
 - **[docs/TUTORIAL-CODEPASTE.md](docs/TUTORIAL-CODEPASTE.md)** — 15 langkah, **semua berupa blok kode siap salin-tempel** (paling gampang)
 - [docs/TUTORIAL.md](docs/TUTORIAL.md) — versi panjang dengan penjelasan tiap langkah
 - **[docs/CARA-KERJA.md](docs/CARA-KERJA.md)** — bagaimana bot bekerja (arsitektur, 12 bagian)
+- **[docs/AUDIT-PREMIUM.md](docs/AUDIT-PREMIUM.md)** — audit kekurangan dan checklist perbandingan bot guild-bank premium
+- **[docs/PREMIUM.md](docs/PREMIUM.md)** — panduan queue, cron, audit, OCR, web roles, multi-instance, dan batasannya
 
 Panduan ringkas teknis: **[docs/SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md)**.
 
@@ -271,7 +273,7 @@ Penjelasan lengkap: **[docs/CARA-KERJA.md](docs/CARA-KERJA.md)**
 | | |
 |---|---|
 | **Dibuat oleh** | **Egandika** |
-| Versi | 1.0.0 (`!version` di chat, atau `python code.py --version`) |
+| Versi | 1.1.0 (`!version` di chat, atau `python code.py --version`) |
 | Lisensi | MIT — lihat `LICENSE` |
 | Tutorial | `docs/TUTORIAL-CODEPASTE.md` (salin-tempel) · `docs/TUTORIAL.md` (lengkap) |
 | Cara kerja | `docs/CARA-KERJA.md` |

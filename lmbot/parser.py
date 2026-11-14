@@ -169,15 +169,15 @@ SPECS += [
        "menetapkan saldo secara manual ke akun member", "!setbal arken_ega food 100m",
        min_rank="R5", risky=True),
     _s("transfer", "transfer <nick> <type> <amount>", "BALANCE", "!transfer (nick)(type)(jumlah)",
-       "mentransfer saldo tabungan ke member lain", "!transfer arken_ega ore 100m"),
+       "mentransfer saldo tabungan ke member lain", "!transfer arken_ega ore 100m", risky=True),
 ]
 
 # ----------------------------------- RSS ----------------------------------- #
 SPECS += [
     _s("rss", "rss <f> <s> <w> <o> <g>", "RSS", "!rss (F)(S)(W)(O)(G)",
-       "mengirimkan semua tipe rss yang diminta", "!rss 5m 5m 5m 5m 5m"),
+       "mengirimkan semua tipe rss yang diminta", "!rss 5m 5m 5m 5m 5m", risky=True),
     _s("donate", "donate <type> <nick> <amount>", "RSS", "!donate (type)(nick)(jumlah)",
-       "mengirimkan rss ke player yang dituju", "!donate food arken_ega 100m"),
+       "mengirimkan rss ke player yang dituju", "!donate food arken_ega 100m", risky=True),
     _s("adminrss", "adminrss <f> <s> <w> <o> <g> <nick>", "RSS", "!adminrss",
        "mengirimkan semua tipe rss ke player yang dituju (hanya admin)",
        "!adminrss 1m 0 0 0 0 arken_ega", min_rank="R5", risky=True),
@@ -195,6 +195,25 @@ SPECS += [
        "peringatan terakhir dari bot", "!alerts", min_rank="R4"),
     _s("version", "version", "INFO", "!version",
        "versi bot & pembuatnya", "!version"),
+]
+
+# ------------------------- OPERASIONAL (premium) --------------------------- #
+SPECS += [
+    _s("queue", "queue", "OPS", "!queue", "melihat antrian pengiriman yang menunggu", "!queue"),
+    _s("jobs", "jobs", "OPS", "!jobs", "riwayat pekerjaan antrian terakhir", "!jobs", min_rank="R4"),
+    _s("cancel", "cancel <id>", "OPS", "!cancel (id)", "membatalkan job di antrian", "!cancel 12",
+       min_rank="R4"),
+    _s("retry", "retry <id>", "OPS", "!retry (id)", "mengulang job yang gagal", "!retry 12",
+       min_rank="R4"),
+    _s("cron", "cron <action>", "OPS", "!cron list|add|del",
+       "jadwal otomatis (list, add \"0 2 * * *\" !top food, del 1)", "!cron list", min_rank="R5"),
+    _s("quota", "quota", "OPS", "!quota", "sisa kuota harian kamu", "!quota"),
+    _s("audit", "audit <action?>", "OPS", "!audit verify|log",
+       "cek keutuhan rantai audit & log transaksi", "!audit verify", min_rank="R4"),
+    _s("undo", "undo", "OPS", "!undo", "membatalkan transaksi terakhir", "!undo", min_rank="R5",
+       risky=True),
+    _s("backup", "backup", "OPS", "!backup", "membuat backup state sekarang", "!backup",
+       min_rank="R4"),
 ]
 
 # Dynamic: !food 100m, !ore 50m, dst. (lihat build_rss_shortcuts)
@@ -322,6 +341,20 @@ def _match(spec: CommandSpec, tokens: Sequence[str]) -> Optional[Dict[str, objec
 
 
 def parse(text: str, sender: str = "") -> Command:
+    # Sintaks cron butuh sisa baris (ekspresi lima field + perintah tujuan).
+    # Tangani khusus agar kutip pada "0 2 * * *" tidak hilang saat tokenize.
+    body = re.sub(r"^[!/.#]", "", (text or "").strip())
+    cron_spec = next((sp for sp in SPECS if sp.name == "cron"), None)
+    if cron_spec and re.match(r"^cron\s+", body, re.I):
+        m = re.match(r"^cron\s+(add)\s+(['\"])(.*?)\2\s+(.+)$", body, re.I)
+        if m:
+            return Command(cron_spec, text, {"action": "add", "expr": m.group(3), "text": m.group(4)}, sender)
+        m = re.match(r"^cron\s+add\s+(\S+\s+\S+\s+\S+\s+\S+\s+\S+)\s+(.+)$", body, re.I)
+        if m:
+            return Command(cron_spec, text, {"action": "add", "expr": m.group(1), "text": m.group(2)}, sender)
+        m = re.match(r"^cron\s+(list|del|delete|rm)(?:\s+(\S+))?\s*$", body, re.I)
+        if m:
+            return Command(cron_spec, text, {"action": m.group(1).lower(), "expr": m.group(2) or False}, sender)
     tokens = tokenize(text)
     if not tokens:
         raise ParseError("perintah kosong")

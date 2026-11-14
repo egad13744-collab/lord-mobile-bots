@@ -297,9 +297,12 @@ class TemplateMatcher:
         return self.find(screen, name, threshold) is not None
 
 
-def ocr_numbers(screen: Screen, box: Tuple[float, float, float, float]) -> str:
-    """Stub OCR. Butuh pytesseract/Windows OCR; lihat docs/OCR.md."""
-    raise NotImplementedError(
-        "OCR belum aktif. Bank menyimpan saldo di state/bank.json, jadi "
-        "pembacaan angka di layar bersifat opsional (lihat docs/OCR.md)."
-    )
+def ocr_numbers(screen: Screen, box: Tuple[float, float, float, float],
+                template_dir="assets/ocr", min_score: float = 0.72) -> str:
+    """Baca angka dari kotak fraksi layar memakai template offline 0-9."""
+    from .imaging import decode_png
+    from .ocr import DigitOCR
+
+    img = decode_png(screen.data).crop_fraction(box)
+    reader = DigitOCR(template_dir)
+    return reader.read_image(img, min_score=min_score).text

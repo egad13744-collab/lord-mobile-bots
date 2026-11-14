@@ -12,6 +12,7 @@ device:
   auto_connect: true          # jalankan `adb connect` sendiri bila perlu
   mumu_manager: 'C:\Program Files\Netease\MuMuPlayer-12.0\shell\MuMuManager.exe'
   screenshot_timeout: 20
+  profiles: {}                # contoh lihat docs/PREMIUM.md; nama -> serial/resolusi
 
 ui:
   # koordinat elemen chat (fraksi layar)
@@ -52,11 +53,17 @@ web:
   enabled: false             # dashboard status di http://<ip>:8081 (opsional)
   host: 0.0.0.0
   port: 8081
-  token: ''
+  token: ''                    # legacy = owner; prefer per-role tokens below
+  roles: {}                    # owner: token, admin: token, viewer: token
+  identities: {}               # owner: Arken Ega, admin: nick admin (ikat token ke nick)
+  rate_limit_per_minute: 60
+  access_log: logs/access.jsonl
 
 safety:
   max_rss_per_transfer: 300000000    # batas per tipe per transaksi (default 300M)
   max_balance_per_command: 100000000 # batas !setbal
+  daily_limit_per_type: 0            # 0 = tanpa batas kuota harian
+  daily_limit_all_types: 0
   allow_large_transfer: false
   cooldown_between_transfers: 2.0
   stop_if_not_in_guild_map: true
@@ -77,7 +84,7 @@ flows:
   dir: config/flows
   default_flow: guild_bank
   step_timeout: 15.0
-  tap_jitter: 4               # geser tap ±4 px agar tidak terlihat seperti macro kaku
+  tap_jitter: 4               # toleransi koordinat ±4 px; bukan fitur anti-deteksi
   max_retries: 1              # percobaan ulang otomatis bila flow gagal
 
 templates:
@@ -86,3 +93,32 @@ templates:
 
 vision:
   min_confidence: 0.5         # ambang deteksi layar (main_map, bank_panel, popup_ok)
+
+# Fitur operasional premium (aman untuk mode lama; dapat dinonaktifkan)
+queue:
+  enabled: true
+  path: state/queue.json
+  max_pending: 50
+  always: false
+schedule:
+  enabled: true
+  path: state/schedule.json
+  interval: 20
+backup:
+  enabled: true
+  keep: 7
+  every_commands: 50
+watchdog:
+  enabled: true
+  interval: 30
+  fail_threshold: 3
+ocr:
+  dir: assets/ocr
+  min_score: 0.72
+commands:
+  path: config/commands.yaml
+# Contoh multi-instance:
+# device:
+#   profiles:
+#     emu1: {serial: '127.0.0.1:16384', width: 1280, height: 720}
+#     emu2: {serial: '127.0.0.1:16416', width: 1280, height: 720}

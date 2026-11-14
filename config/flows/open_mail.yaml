@@ -4,7 +4,8 @@ name: open_mail
 description: buka ikon surat di bottom bar
 enabled: true
 steps:
-  - assert: main_hud
-  - tap: [0.6531, 0.9472]     # mail_button, terukur dari screenshot 1600x720
+  - assert: main_profile     # HUD ini stabil di screenshot kota baru; main_hud lama terlalu spesifik
+  - assert: mail_button
+  - tap: [0.6531, 0.9472]     # pusat mail_button, terukur dari screenshot 1600x720
   - wait: 1.5
-  - assert: {template: mail_button, timeout: 6}
+  - assert: {template: mail_panel, timeout: 8}

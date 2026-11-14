@@ -195,9 +195,11 @@ mengklik sembarangan. Ini pengaman saat kalibrasi belum selesai.
 | Mengetik | `adb shell input text ...` |
 | Tombol back | `adb shell input keyevent 4` |
 
-Sentuhan diberi **jitter ±4 px** (`flows.tap_jitter`) agar pola klik tidak
-persis sama setiap kali. Kalau koneksi putus (`DeviceError`), `DeviceSession`
-menyambung ulang otomatis dengan backoff.
+Sentuhan dapat diberi **toleransi koordinat ±4 px** (`flows.tap_jitter`) untuk
+mengompensasi titik crop yang sedikit meleset. Ini bukan simulasi perilaku manusia
+atau fitur anti-deteksi; jitter juga dapat membuat tap meleset dari kontrol kecil.
+Kalau koneksi putus (`DeviceError`), `DeviceSession` menyambung ulang otomatis
+dengan backoff.
 
 ## 9. Penglihatan (vision) — mengenali layar
 
@@ -245,4 +247,4 @@ Dipakai untuk dua hal: memastikan bot **ada di layar yang benar**
 
 ---
 
-**LMBot v1.0.0 — Dibuat oleh Egandika**
+**LMBot v1.1.0 — Dibuat oleh Egandika**

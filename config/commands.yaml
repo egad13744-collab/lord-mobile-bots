@@ -1,0 +1,46 @@
+# =============================================================================
+# LMBot — kustomisasi perintah (opsional)
+# Dibuat oleh Egandika
+#
+# File ini membuat bot bisa disesuaikan tanpa mengubah Python.
+# Isi `aliases` untuk nama pendek, dan `custom` untuk balasan teks tetap.
+# Kalau file ini dihapus, bot tetap jalan normal (alias dilewati).
+# =============================================================================
+aliases:
+  b: bal
+  sd: shield
+  xfr: transfer
+  tabung: rss
+  sisa: bal
+  rank: members
+  antri: queue
+  jadwal: cron
+
+# Perintah custom: nama -> {reply, min_rank}
+# Dipanggil dengan `!aturan`, `!cara`, dst. Tidak menyentuh layar game.
+custom:
+  aturan:
+    reply: |
+      📜 ATURAN GUILD BANK
+      1. Tabung minimal 10M/hari agar saldo bank tetap naik.
+      2. Ambil hanya sesuai kebutuhan; maksimal 50M per permintaan.
+      3. Gunakan !bal untuk cek saldo sebelum meminta.
+      4. Transfer hanya untuk keperluan bangun/troop/research.
+      5. Jangan hapus pesan yang sudah diproses bot (audit trail).
+    min_rank: R1
+  cara:
+    reply: |
+      📘 CARA PAKAI
+      • Cek saldo      : !bal
+      • Kirim RSS      : !food 100m   (atau !rss 1m 0 0 0 0)
+      • Transfer       : !transfer <nick> <tipe> <jumlah>
+      • Top penabung   : !top food
+      • Sisa kuota     : !quota
+      • Bantuan penuh  : !help
+    min_rank: R1
+  donate_info:
+    reply: |
+      🎁 DONASI KE BANK
+      Donasi = kirim RSS ke player bank. Contoh: !donate food arken_ega 100m
+      Semua donasi tercatat di audit dan diumumkan lewat !top.
+    min_rank: R1
